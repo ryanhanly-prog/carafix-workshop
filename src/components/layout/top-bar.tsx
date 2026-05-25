@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
@@ -30,6 +31,9 @@ export function TopBar({ email }: { email: string }) {
         <SheetContent side="left" className="w-64 p-0">
           <SheetHeader>
             <SheetTitle>Carafix Workshop</SheetTitle>
+            <SheetDescription className="sr-only">
+              Workshop navigation
+            </SheetDescription>
           </SheetHeader>
           <SideNav onNavigate={() => setMobileOpen(false)} />
         </SheetContent>
