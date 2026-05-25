@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(git --version)",
+      "mcp__claude_ai_Supabase__apply_migration",
+      "mcp__claude_ai_Supabase__list_tables",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "PowerShell(Move-Item *)",
+      "Bash(npm install *)",
+      "Bash(npx --yes shadcn@latest init --help)",
+      "Bash(tasklist)",
+      "Bash(npx --yes shadcn@latest add form -y)",
+      "Bash(npx --yes shadcn@latest add form)"
+    ]
+  }
+}
