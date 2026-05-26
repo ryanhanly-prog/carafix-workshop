@@ -1,11 +1,25 @@
-# Carafix Workshop Scheduler
+# Shopbook
 
-Internal workshop scheduling app for Carafix caravan repairs. Two locations to
-start (Arundel and Currumbin), designed to add more.
+**Shopbook** is an AI-powered workshop operations platform. It is multi-tenant:
+each workshop is an `organisation`. The first tenant is **Carafix** caravan
+repairs (two locations, Arundel and Currumbin).
 
-This repository currently contains **Step 1** of the build plan: project
-scaffold, authentication, database schema, seed data, and an empty app shell.
-No business UI yet.
+> The on-disk directory and GitHub repo are still named `carafix-workshop` — the
+> repo predates the Shopbook brand. The repo name doesn't matter; the product
+> brand is set entirely via `src/lib/brand.ts` (see "Rebranding the platform").
+
+## Rebranding the platform
+
+The platform name is centralised in one file. To rebrand:
+
+1. Edit `src/lib/brand.ts` — change `name`, `tagline`, `domain`, `supportEmail`
+2. Replace `public/brand/wordmark.svg` with your new logo (keep dimensions ~160x32)
+3. Update `package.json` `name` field
+4. Run `npm run build` to verify
+5. (Optional) Rename the repo on GitHub via Settings → Rename
+6. (Optional) Update environment variables, deployment configs
+
+No code changes required outside these files. The repo name on disk stays as-is.
 
 ## Stack
 

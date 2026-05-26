@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/sonner"
+import { BRAND } from "@/lib/brand"
 
 import "./globals.css"
 
@@ -17,8 +18,8 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Carafix Workshop",
-  description: "Workshop scheduling for Carafix caravan repairs",
+  title: BRAND.name,
+  description: BRAND.productDescription,
 }
 
 export default function RootLayout({

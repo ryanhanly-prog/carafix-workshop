@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { z } from "zod"
 
 import { login } from "./actions"
+import { BRAND } from "@/lib/brand"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -53,7 +54,7 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl">Carafix Workshop</CardTitle>
+        <CardTitle className="text-2xl">{BRAND.name}</CardTitle>
         <CardDescription>Sign in to your controller account</CardDescription>
       </CardHeader>
       <CardContent>

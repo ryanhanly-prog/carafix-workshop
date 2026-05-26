@@ -6,7 +6,9 @@ import { Menu } from "lucide-react"
 import { LocationSwitcher } from "./location-switcher"
 import { SideNav } from "./side-nav"
 import { UserMenu } from "./user-menu"
+import { Wordmark } from "./wordmark"
 import { Button } from "@/components/ui/button"
+import { BRAND } from "@/lib/brand"
 import {
   Sheet,
   SheetContent,
@@ -30,7 +32,7 @@ export function TopBar({ email }: { email: string }) {
         </SheetTrigger>
         <SheetContent side="left" className="w-64 p-0">
           <SheetHeader>
-            <SheetTitle>Carafix Workshop</SheetTitle>
+            <SheetTitle>{BRAND.name}</SheetTitle>
             <SheetDescription className="sr-only">
               Workshop navigation
             </SheetDescription>
@@ -39,9 +41,7 @@ export function TopBar({ email }: { email: string }) {
         </SheetContent>
       </Sheet>
 
-      <span className="text-lg font-semibold tracking-tight">
-        Carafix Workshop
-      </span>
+      <Wordmark className="text-foreground" />
 
       <div className="ml-auto flex items-center gap-2">
         <LocationSwitcher />
