@@ -1,5 +1,11 @@
+import { Suspense } from "react"
+
 import { JobsView } from "@/components/jobs/jobs-view"
 
 export default function JobsPage() {
-  return <JobsView />
+  return (
+    <Suspense>
+      <JobsView />
+    </Suspense>
+  )
 }

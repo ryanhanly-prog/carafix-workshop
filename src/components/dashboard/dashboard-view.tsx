@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatDate, surname } from "@/lib/format"
-import { useJobs, useParts } from "@/lib/queries"
+import { useJobs } from "@/lib/queries"
 import { useLocation } from "@/lib/location-context"
 import type { JobListRow } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -60,11 +60,13 @@ function JobRow({
 function WidgetCard({
   title,
   count,
+  caption,
   children,
   className,
 }: {
   title: string
   count?: number
+  caption?: string
   children: React.ReactNode
   className?: string
 }) {
@@ -79,6 +81,9 @@ function WidgetCard({
             </span>
           ) : null}
         </CardTitle>
+        {caption ? (
+          <p className="text-xs font-normal text-muted-foreground">{caption}</p>
+        ) : null}
       </CardHeader>
       <CardContent>{children}</CardContent>
     </Card>
@@ -89,14 +94,14 @@ function EmptyState({ children }: { children: React.ReactNode }) {
   return <p className="px-2 py-3 text-sm text-muted-foreground">{children}</p>
 }
 
-function ViewAll({ count }: { count: number }) {
+function ViewAll({ count, href = "/jobs" }: { count: number; href?: string }) {
   if (count <= LIST_LIMIT) return null
   return (
     <Link
-      href="/jobs"
+      href={href}
       className="mt-1 block px-2 text-xs text-muted-foreground hover:underline"
     >
-      View all {count} →
+      View all →
     </Link>
   )
 }
@@ -105,11 +110,13 @@ function StatTile({
   label,
   value,
   href,
+  sub,
   emphasis,
 }: {
   label: string
   value: number
   href: string
+  sub?: string
   emphasis?: boolean
 }) {
   return (
@@ -126,6 +133,9 @@ function StatTile({
         {value}
       </span>
       <span className="text-xs text-muted-foreground">{label}</span>
+      {sub ? (
+        <span className="text-[11px] text-muted-foreground/70">{sub}</span>
+      ) : null}
     </Link>
   )
 }
@@ -133,7 +143,6 @@ function StatTile({
 export function DashboardView() {
   const { currentLocationId, currentLocation } = useLocation()
   const { data: jobs, isLoading } = useJobs(currentLocationId)
-  const { data: parts = [] } = useParts(currentLocationId)
 
   const today = toDateString(new Date())
   const tomorrow = toDateString(addDays(new Date(), 1))
@@ -143,6 +152,11 @@ export function DashboardView() {
     const all = jobs ?? []
     const active = all.filter((j) => j.status !== "Picked Up")
     const inProgress = all.filter((j) => j.status === "In Progress")
+    const onHold = all.filter((j) => j.status === "On Hold")
+    // The workshop floor right now — broader than strict "In Progress".
+    const inWorkshop = all.filter((j) =>
+      ["Arrived", "In Progress", "On Hold"].includes(j.status)
+    )
     const endingToday = all.filter(
       (j) =>
         j.expected_finish_date === today && !DONE_STATUSES.includes(j.status)
@@ -171,6 +185,8 @@ export function DashboardView() {
     return {
       active,
       inProgress,
+      onHold,
+      inWorkshop,
       endingToday,
       readyToStart,
       collectingSoon,
@@ -208,40 +224,57 @@ export function DashboardView() {
 
       {/* Widget 1 — snapshot strip */}
       <Card size="sm">
-        <CardContent className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
-          <StatTile label="Active jobs" value={groups.active.length} href="/jobs" />
-          <StatTile
-            label="In progress"
-            value={groups.inProgress.length}
-            href="/jobs"
-          />
-          <StatTile
-            label="Urgent"
-            value={groups.urgent.length}
-            href="/jobs"
-            emphasis
-          />
-          <StatTile
-            label="Delayed"
-            value={groups.delayed.length}
-            href="/jobs"
-            emphasis
-          />
-          <StatTile label="Parts waiting" value={parts.length} href="/parts" />
+        <CardContent className="space-y-2">
+          <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
+            <StatTile label="Active" value={groups.active.length} href="/jobs" />
+            <StatTile
+              label="In progress"
+              value={groups.inProgress.length}
+              href="/jobs?filter=in_progress"
+              sub={`of ${groups.active.length} active`}
+            />
+            <StatTile
+              label="On hold"
+              value={groups.onHold.length}
+              href="/jobs?filter=on_hold"
+              sub={`of ${groups.active.length} active`}
+            />
+            <StatTile
+              label="Urgent"
+              value={groups.urgent.length}
+              href="/jobs?filter=urgent"
+              sub="(may overlap)"
+              emphasis
+            />
+            <StatTile
+              label="Delayed"
+              value={groups.delayed.length}
+              href="/jobs?filter=delayed"
+              sub="(may overlap)"
+              emphasis
+            />
+          </div>
+          <p className="px-3 text-xs text-muted-foreground">
+            Urgent and Delayed are flags — they overlap with status counts.
+          </p>
         </CardContent>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Widget 2 — in progress today */}
-        <WidgetCard title="In progress today" count={groups.inProgress.length}>
-          {groups.inProgress.length === 0 ? (
+        <WidgetCard
+          title="In progress today"
+          count={groups.inWorkshop.length}
+          caption="Jobs in the workshop right now — Arrived, In Progress, or On Hold."
+        >
+          {groups.inWorkshop.length === 0 ? (
             <EmptyState>
-              No jobs in progress. Start the next one from the queue.
+              No jobs in the workshop. Start the next one from the queue.
             </EmptyState>
           ) : (
             <>
               <div className="space-y-0.5">
-                {groups.inProgress.slice(0, LIST_LIMIT).map((j) => {
+                {groups.inWorkshop.slice(0, LIST_LIMIT).map((j) => {
                   const p = workingDayProgress(
                     j.job_start_date,
                     j.expected_finish_date
@@ -264,13 +297,13 @@ export function DashboardView() {
                   )
                 })}
               </div>
-              <ViewAll count={groups.inProgress.length} />
+              <ViewAll count={groups.inWorkshop.length} href="/jobs?filter=in_progress" />
             </>
           )}
         </WidgetCard>
 
-        {/* Widget 3 — ending today */}
-        <WidgetCard title="Ending today" count={groups.endingToday.length}>
+        {/* Widget 3 — expected completion today */}
+        <WidgetCard title="Expected completion today" count={groups.endingToday.length}>
           {groups.endingToday.length === 0 ? (
             <EmptyState>Nothing finishing today.</EmptyState>
           ) : (
@@ -355,7 +388,10 @@ export function DashboardView() {
                   />
                 ))}
               </div>
-              <ViewAll count={groups.collectingSoon.length} />
+              <ViewAll
+                count={groups.collectingSoon.length}
+                href="/jobs?filter=customer_collecting"
+              />
             </>
           )}
         </WidgetCard>

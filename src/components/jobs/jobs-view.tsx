@@ -1,10 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { X } from "lucide-react"
 
 import { JobFlagIcons, PriorityBadge, StatusBadge } from "@/components/jobs/badges"
 import { NewJobDialog } from "@/components/jobs/new-job-dialog"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import {
@@ -28,13 +30,44 @@ import { formatDate, surname } from "@/lib/format"
 import { BILLING_TYPES, JOB_STATUSES } from "@/lib/job-display"
 import { useLocation } from "@/lib/location-context"
 import { useJobs, useTechnicians } from "@/lib/queries"
+import type { JobListRow } from "@/lib/types"
 
 const ALL = "all"
 const COLUMN_COUNT = 13
 
+// Quick-filters arriving from dashboard widgets via ?filter=.
+const FILTER_LABELS: Record<string, string> = {
+  customer_collecting: "Customer collecting",
+  in_progress: "In workshop",
+  urgent: "Urgent",
+  delayed: "Delayed",
+  on_hold: "On hold",
+}
+
+const IN_WORKSHOP = ["Arrived", "In Progress", "On Hold"]
+
+function matchesQuickFilter(j: JobListRow, filter: string): boolean {
+  switch (filter) {
+    case "customer_collecting":
+      return j.customer_promised_date != null && j.status !== "Picked Up"
+    case "in_progress":
+      return IN_WORKSHOP.includes(j.status)
+    case "urgent":
+      return !!j.is_urgent
+    case "delayed":
+      return !!j.is_delayed
+    case "on_hold":
+      return j.status === "On Hold"
+    default:
+      return true
+  }
+}
+
 export function JobsView() {
   const { currentLocationId } = useLocation()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const quickFilter = searchParams.get("filter") ?? ""
   const { data: jobs, isLoading } = useJobs(currentLocationId)
   const { data: techs = [] } = useTechnicians(currentLocationId)
 
@@ -46,7 +79,8 @@ export function JobsView() {
   const filtered = React.useMemo(() => {
     if (!jobs) return []
     const term = search.trim().toLowerCase()
-    return jobs.filter((j) => {
+    const result = jobs.filter((j) => {
+      if (quickFilter && !matchesQuickFilter(j, quickFilter)) return false
       if (status !== ALL && j.status !== status) return false
       if (techId !== ALL && j.assigned_tech_id !== techId) return false
       if (billingType !== ALL && j.billing_type !== billingType) return false
@@ -59,7 +93,14 @@ export function JobsView() {
       }
       return true
     })
-  }, [jobs, status, techId, billingType, search])
+    // Customer-collecting view surfaces the soonest pickups first.
+    if (quickFilter === "customer_collecting") {
+      result.sort((a, b) =>
+        (a.customer_promised_date ?? "").localeCompare(b.customer_promised_date ?? "")
+      )
+    }
+    return result
+  }, [jobs, status, techId, billingType, search, quickFilter])
 
   return (
     <div className="space-y-4">
@@ -115,6 +156,23 @@ export function JobsView() {
           </SelectContent>
         </Select>
       </div>
+
+      {quickFilter && FILTER_LABELS[quickFilter] ? (
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="gap-1.5">
+            Filter: {FILTER_LABELS[quickFilter]}
+            <button
+              type="button"
+              onClick={() => router.push("/jobs")}
+              className="inline-flex items-center hover:text-foreground"
+              aria-label="Clear filter"
+            >
+              <X className="size-3" />
+              clear
+            </button>
+          </Badge>
+        </div>
+      ) : null}
 
       <Card>
         <CardContent className="p-0">
