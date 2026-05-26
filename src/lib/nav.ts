@@ -1,6 +1,7 @@
 import {
   CalendarDays,
   Columns3,
+  Contact,
   LayoutDashboard,
   Package,
   Settings,
@@ -21,6 +22,7 @@ export const navItems: NavItem[] = [
   { title: "Schedule", href: "/schedule", icon: CalendarDays },
   { title: "Kanban", href: "/kanban", icon: Columns3 },
   { title: "Jobs", href: "/jobs", icon: Wrench },
+  { title: "Customers", href: "/customers", icon: Contact },
   { title: "Technicians", href: "/technicians", icon: Users },
   { title: "Parts", href: "/parts", icon: Package },
   { title: "Briefing", href: "/briefing", icon: Sparkles },

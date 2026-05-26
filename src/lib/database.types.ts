@@ -296,6 +296,7 @@ export type Database = {
           description: string | null
           expected_finish_date: string | null
           id: string
+          insurance_claim_number: string | null
           internal_notes: string | null
           invoice_status: Database["public"]["Enums"]["invoice_status"] | null
           job_number: string
@@ -311,6 +312,8 @@ export type Database = {
           total_quoted_hours: number | null
           updated_at: string | null
           van_id: string
+          warranty_reference: string | null
+          work_type: Database["public"]["Enums"]["work_type"] | null
         }
         Insert: {
           actual_finish_date?: string | null
@@ -323,6 +326,7 @@ export type Database = {
           description?: string | null
           expected_finish_date?: string | null
           id?: string
+          insurance_claim_number?: string | null
           internal_notes?: string | null
           invoice_status?: Database["public"]["Enums"]["invoice_status"] | null
           job_number: string
@@ -338,6 +342,8 @@ export type Database = {
           total_quoted_hours?: number | null
           updated_at?: string | null
           van_id: string
+          warranty_reference?: string | null
+          work_type?: Database["public"]["Enums"]["work_type"] | null
         }
         Update: {
           actual_finish_date?: string | null
@@ -350,6 +356,7 @@ export type Database = {
           description?: string | null
           expected_finish_date?: string | null
           id?: string
+          insurance_claim_number?: string | null
           internal_notes?: string | null
           invoice_status?: Database["public"]["Enums"]["invoice_status"] | null
           job_number?: string
@@ -365,6 +372,8 @@ export type Database = {
           total_quoted_hours?: number | null
           updated_at?: string | null
           van_id?: string
+          warranty_reference?: string | null
+          work_type?: Database["public"]["Enums"]["work_type"] | null
         }
         Relationships: [
           {
@@ -600,7 +609,7 @@ export type Database = {
           scheduled_date: string | null
           scheduled_hours: number | null
           sequence_order: number
-          skill_id: string
+          skill_id: string | null
           started_at: string | null
           status: Database["public"]["Enums"]["task_status"]
           title: string
@@ -619,7 +628,7 @@ export type Database = {
           scheduled_date?: string | null
           scheduled_hours?: number | null
           sequence_order: number
-          skill_id: string
+          skill_id?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title: string
@@ -638,7 +647,7 @@ export type Database = {
           scheduled_date?: string | null
           scheduled_hours?: number | null
           sequence_order?: number
-          skill_id?: string
+          skill_id?: string | null
           started_at?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           title?: string
@@ -754,6 +763,7 @@ export type Database = {
           name: string
           phone: string | null
           productive_hours_per_day: number | null
+          role: Database["public"]["Enums"]["tech_role"] | null
           weekly_capacity_hours: number | null
         }
         Insert: {
@@ -767,6 +777,7 @@ export type Database = {
           name: string
           phone?: string | null
           productive_hours_per_day?: number | null
+          role?: Database["public"]["Enums"]["tech_role"] | null
           weekly_capacity_hours?: number | null
         }
         Update: {
@@ -780,6 +791,7 @@ export type Database = {
           name?: string
           phone?: string | null
           productive_hours_per_day?: number | null
+          role?: Database["public"]["Enums"]["tech_role"] | null
           weekly_capacity_hours?: number | null
         }
         Relationships: [
@@ -908,7 +920,7 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      is_controller: { Args: never; Returns: boolean }
     }
     Enums: {
       bay_type: "Drive-in Bay" | "Yard Slot" | "Offsite Storage"
@@ -931,6 +943,13 @@ export type Database = {
         | "Waiting on Parts"
         | "QA Complete"
         | "Done"
+      tech_role: "Service Tech" | "Caravan Repairer"
+      work_type:
+        | "Service"
+        | "Repair"
+        | "Pre-purchase inspection"
+        | "Modification"
+        | "Other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1079,6 +1098,14 @@ export const Constants = {
         "Waiting on Parts",
         "QA Complete",
         "Done",
+      ],
+      tech_role: ["Service Tech", "Caravan Repairer"],
+      work_type: [
+        "Service",
+        "Repair",
+        "Pre-purchase inspection",
+        "Modification",
+        "Other",
       ],
     },
   },

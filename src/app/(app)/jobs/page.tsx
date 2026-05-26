@@ -1,5 +1,5 @@
-import { PageStub } from "@/components/layout/page-stub"
+import { JobsView } from "@/components/jobs/jobs-view"
 
 export default function JobsPage() {
-  return <PageStub title="Jobs" />
+  return <JobsView />
 }

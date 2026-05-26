@@ -1,5 +1,5 @@
-import { PageStub } from "@/components/layout/page-stub"
+import { TechniciansView } from "@/components/technicians/technicians-view"
 
 export default function TechniciansPage() {
-  return <PageStub title="Technicians" />
+  return <TechniciansView />
 }

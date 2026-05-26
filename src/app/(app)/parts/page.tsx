@@ -1,5 +1,5 @@
-import { PageStub } from "@/components/layout/page-stub"
+import { PartsView } from "@/components/parts/parts-view"
 
 export default function PartsPage() {
-  return <PageStub title="Parts" />
+  return <PartsView />
 }

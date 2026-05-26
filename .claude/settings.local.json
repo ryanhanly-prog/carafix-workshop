@@ -11,7 +11,13 @@
       "Bash(npx --yes shadcn@latest init --help)",
       "Bash(tasklist)",
       "Bash(npx --yes shadcn@latest add form -y)",
-      "Bash(npx --yes shadcn@latest add form)"
+      "Bash(npx --yes shadcn@latest add form)",
+      "mcp__claude_ai_Supabase__get_advisors",
+      "mcp__claude_ai_Supabase__generate_typescript_types",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(npx next *)",
+      "PowerShell(Get-NetTCPConnection *)"
     ]
   }
 }
