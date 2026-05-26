@@ -6,6 +6,7 @@ import {
   Package,
   Settings,
   Sparkles,
+  Upload,
   Users,
   Wrench,
   type LucideIcon,
@@ -26,5 +27,6 @@ export const navItems: NavItem[] = [
   { title: "Technicians", href: "/technicians", icon: Users },
   { title: "Parts", href: "/parts", icon: Package },
   { title: "Briefing", href: "/briefing", icon: Sparkles },
+  { title: "Imports", href: "/imports", icon: Upload },
   { title: "Settings", href: "/settings", icon: Settings },
 ]
