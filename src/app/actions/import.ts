@@ -4,6 +4,7 @@ import JSZip from "jszip"
 import { revalidatePath } from "next/cache"
 
 import { createClient } from "@/lib/supabase/server"
+import type { Json } from "@/lib/database.types"
 import { KNOWN_CSV_FILES } from "@/lib/import/mechanic-desk"
 import { runImport, type ImportFile } from "@/lib/import/run-import"
 
@@ -85,7 +86,7 @@ export async function importMechanicDeskZip(
       .from("import_batches")
       .update({
         status: "completed",
-        stats: result.stats as unknown as Record<string, unknown>,
+        stats: result.stats as unknown as Json,
         rows_inserted: result.totals.inserted,
         rows_updated: result.totals.updated,
         rows_failed: result.totals.failed,

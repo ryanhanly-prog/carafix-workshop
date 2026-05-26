@@ -14,7 +14,7 @@
 import { readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
-import { createClient } from "@supabase/supabase-js"
+import { createClient, type SupabaseClient } from "@supabase/supabase-js"
 import JSZip from "jszip"
 
 import { KNOWN_CSV_FILES } from "@/lib/import/mechanic-desk"
@@ -98,8 +98,9 @@ async function main() {
     "historical_quote_items",
   ] as const
   console.log("\n========== FINAL ROW COUNTS (Carafix org) ==========")
+  const loose = supabase as unknown as SupabaseClient
   for (const t of tables) {
-    let q = supabase.from(t).select("*", { count: "exact", head: true })
+    let q = loose.from(t).select("*", { count: "exact", head: true })
     if (t !== "stock_item_suppliers") q = q.eq("organisation_id", CARAFIX_ORG)
     const { count, error } = await q
     console.log(`  ${t}: ${error ? "ERR " + error.message : count}`)

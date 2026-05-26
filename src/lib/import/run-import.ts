@@ -29,7 +29,13 @@ import {
   type StockRow,
 } from "@/lib/import/mechanic-desk"
 
-type DB = SupabaseClient<Database>
+export type DB = SupabaseClient<Database>
+
+// A deliberately loose client view for the generic, multi-table bulk operations
+// below. The generated Database types cannot express `.from(<dynamic string>)`
+// or `Record<string, unknown>` payloads; the importer validates shapes itself
+// and writes only to known tables, so the looser surface is appropriate here.
+type LooseDB = SupabaseClient
 
 export type EntityStat = { inserted: number; updated: number; failed: number }
 export type ImportStats = {
@@ -78,38 +84,38 @@ function filesOfKind(files: ImportFile[], kind: string): string[] {
 }
 
 // Page through a single column for the whole org (PostgREST caps a select at
-// 1000 rows, so we range-paginate).
+// 1000 rows, so we range-paginate). Order is REQUIRED: range pagination without
+// a stable sort can return overlapping/missing rows across pages, which would
+// silently corrupt the existing-key set and break idempotency.
 async function fetchExistingKeys(
-  supabase: DB,
+  db: LooseDB,
   table: string,
   org: string,
   col: string
 ): Promise<Set<string>> {
   const keys = new Set<string>()
   const page = 1000
-  // Order is REQUIRED: range pagination without a stable sort can return
-  // overlapping/missing rows across pages, which would silently corrupt the
-  // existing-key set and break idempotency.
   for (let from = 0; ; from += page) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from(table)
       .select(col)
       .eq("organisation_id", org)
       .order(col, { ascending: true })
       .range(from, from + page - 1)
     if (error) throw new Error(`fetch existing ${table}.${col}: ${error.message}`)
-    if (!data || data.length === 0) break
-    for (const r of data as Record<string, string | null>[]) {
+    const rows = (data ?? []) as unknown as Record<string, string | null>[]
+    if (rows.length === 0) break
+    for (const r of rows) {
       const v = r[col]
       if (v != null) keys.add(v)
     }
-    if (data.length < page) break
+    if (rows.length < page) break
   }
   return keys
 }
 
 async function fetchKeyIdMap(
-  supabase: DB,
+  db: LooseDB,
   table: string,
   org: string,
   keyCol: string
@@ -117,24 +123,25 @@ async function fetchKeyIdMap(
   const map = new Map<string, string>()
   const page = 1000
   for (let from = 0; ; from += page) {
-    const { data, error } = await supabase
+    const { data, error } = await db
       .from(table)
       .select(`id, ${keyCol}`)
       .eq("organisation_id", org)
       .order("id", { ascending: true })
       .range(from, from + page - 1)
     if (error) throw new Error(`fetch id map ${table}: ${error.message}`)
-    if (!data || data.length === 0) break
-    for (const r of data as Record<string, string>[]) {
+    const rows = (data ?? []) as unknown as Record<string, string>[]
+    if (rows.length === 0) break
+    for (const r of rows) {
       if (r[keyCol] != null) map.set(r[keyCol], r.id)
     }
-    if (data.length < page) break
+    if (rows.length < page) break
   }
   return map
 }
 
 async function upsertBatches(
-  supabase: DB,
+  db: LooseDB,
   table: string,
   rows: Record<string, unknown>[],
   onConflict: string,
@@ -142,7 +149,7 @@ async function upsertBatches(
   dbErrors: string[]
 ) {
   for (const c of chunk(rows, BATCH)) {
-    const { error } = await supabase.from(table).upsert(c, { onConflict, ignoreDuplicates: false })
+    const { error } = await db.from(table).upsert(c, { onConflict, ignoreDuplicates: false })
     if (error) {
       stat.failed += c.length
       stat.inserted = Math.max(0, stat.inserted - c.length) // it didn't actually land
@@ -152,14 +159,14 @@ async function upsertBatches(
 }
 
 async function insertBatches(
-  supabase: DB,
+  db: LooseDB,
   table: string,
   rows: Record<string, unknown>[],
   dbErrors: string[]
 ): Promise<number> {
   let failed = 0
   for (const c of chunk(rows, BATCH)) {
-    const { error } = await supabase.from(table).insert(c)
+    const { error } = await db.from(table).insert(c)
     if (error) {
       failed += c.length
       dbErrors.push(`insert ${table}: ${error.message}`)
@@ -174,6 +181,7 @@ export async function runImport(
   files: ImportFile[]
 ): Promise<ImportResult> {
   const org = organisationId
+  const db = supabase as unknown as LooseDB
   const stats: ImportStats = {
     customers: emptyStat(),
     suppliers: emptyStat(),
@@ -203,7 +211,7 @@ export async function runImport(
       }
     }
     const rows = [...dedup.values()]
-    const existing = await fetchExistingKeys(supabase, "customers", org, "external_id")
+    const existing = await fetchExistingKeys(db, "customers", org, "external_id")
     let inserted = 0
     let updated = 0
     const payload = rows.map((r) => {
@@ -212,7 +220,7 @@ export async function runImport(
       return { ...r, organisation_id: org }
     })
     stats.customers = { inserted, updated, failed: skipped }
-    await upsertBatches(supabase, "customers", payload, "organisation_id,external_id", stats.customers, dbErrors)
+    await upsertBatches(db, "customers", payload, "organisation_id,external_id", stats.customers, dbErrors)
   }
 
   // ---------------- Suppliers + Stock items ----------------
@@ -234,7 +242,7 @@ export async function runImport(
     // Suppliers first (referenced by the link table).
     const supplierNames = new Set<string>()
     for (const s of stockRows) for (const n of s.suppliers) supplierNames.add(n)
-    const existingSuppliers = await fetchExistingKeys(supabase, "suppliers", org, "name")
+    const existingSuppliers = await fetchExistingKeys(db, "suppliers", org, "name")
     let sInserted = 0
     let sUpdated = 0
     const supplierPayload = [...supplierNames].map((name) => {
@@ -243,10 +251,10 @@ export async function runImport(
       return { name, organisation_id: org }
     })
     stats.suppliers = { inserted: sInserted, updated: sUpdated, failed: 0 }
-    await upsertBatches(supabase, "suppliers", supplierPayload, "organisation_id,name", stats.suppliers, dbErrors)
+    await upsertBatches(db, "suppliers", supplierPayload, "organisation_id,name", stats.suppliers, dbErrors)
 
     // Stock items.
-    const existingStock = await fetchExistingKeys(supabase, "stock_items", org, "external_id")
+    const existingStock = await fetchExistingKeys(db, "stock_items", org, "external_id")
     let inserted = 0
     let updated = 0
     const stockPayload = stockRows.map((r) => {
@@ -259,11 +267,11 @@ export async function runImport(
       return { ...cols, organisation_id: org }
     })
     stats.stock_items = { inserted, updated, failed: skipped }
-    await upsertBatches(supabase, "stock_items", stockPayload, "organisation_id,external_id", stats.stock_items, dbErrors)
+    await upsertBatches(db, "stock_items", stockPayload, "organisation_id,external_id", stats.stock_items, dbErrors)
 
     // Link stock <-> suppliers.
-    const supplierMap = await fetchKeyIdMap(supabase, "suppliers", org, "name")
-    const stockMap = await fetchKeyIdMap(supabase, "stock_items", org, "external_id")
+    const supplierMap = await fetchKeyIdMap(db, "suppliers", org, "name")
+    const stockMap = await fetchKeyIdMap(db, "stock_items", org, "external_id")
     const links: Record<string, unknown>[] = []
     for (const s of stockRows) {
       const stockId = s.external_id ? stockMap.get(s.external_id) : undefined
@@ -280,7 +288,7 @@ export async function runImport(
       })
     }
     for (const c of chunk(links, BATCH)) {
-      const { error } = await supabase
+      const { error } = await db
         .from("stock_item_suppliers")
         .upsert(c, { onConflict: "stock_item_id,supplier_id", ignoreDuplicates: true })
       if (error) dbErrors.push(`upsert stock_item_suppliers: ${error.message}`)
@@ -299,7 +307,7 @@ export async function runImport(
       for (const { row } of res.rows) dedup.set(row.invoice_number, row)
     }
     const rows = [...dedup.values()]
-    const existing = await fetchExistingKeys(supabase, "historical_invoices", org, "invoice_number")
+    const existing = await fetchExistingKeys(db, "historical_invoices", org, "invoice_number")
     let inserted = 0
     let updated = 0
     const payload = rows.map((r) => {
@@ -308,10 +316,10 @@ export async function runImport(
       return { ...r, organisation_id: org }
     })
     stats.historical_invoices = { inserted, updated, failed: skipped }
-    await upsertBatches(supabase, "historical_invoices", payload, "organisation_id,invoice_number", stats.historical_invoices, dbErrors)
+    await upsertBatches(db, "historical_invoices", payload, "organisation_id,invoice_number", stats.historical_invoices, dbErrors)
 
     // Items: resolve parent id, replace by parent number.
-    const invoiceMap = await fetchKeyIdMap(supabase, "historical_invoices", org, "invoice_number")
+    const invoiceMap = await fetchKeyIdMap(db, "historical_invoices", org, "invoice_number")
     const itemDedup: ReturnType<typeof parseInvoiceItems>["rows"][number]["row"][] = []
     let itemSkips = 0
     for (const csv of filesOfKind(files, "invoice_items")) {
@@ -322,7 +330,7 @@ export async function runImport(
     }
     const affectedNumbers = [...new Set(itemDedup.map((r) => r.invoice_number))]
     for (const c of chunk(affectedNumbers, BATCH)) {
-      const { error } = await supabase
+      const { error } = await db
         .from("historical_invoice_items")
         .delete()
         .eq("organisation_id", org)
@@ -336,7 +344,7 @@ export async function runImport(
       else iInserted++
       return { ...r, organisation_id: org, invoice_id: invoiceMap.get(r.invoice_number) ?? null }
     })
-    const failed = await insertBatches(supabase, "historical_invoice_items", itemPayload, dbErrors)
+    const failed = await insertBatches(db, "historical_invoice_items", itemPayload, dbErrors)
     stats.historical_invoice_items = { inserted: iInserted, updated: iUpdated, failed: itemSkips + failed }
   }
 
@@ -351,7 +359,7 @@ export async function runImport(
       for (const { row } of res.rows) dedup.set(row.quote_number, row)
     }
     const rows = [...dedup.values()]
-    const existing = await fetchExistingKeys(supabase, "historical_quotes", org, "quote_number")
+    const existing = await fetchExistingKeys(db, "historical_quotes", org, "quote_number")
     let inserted = 0
     let updated = 0
     const payload = rows.map((r) => {
@@ -360,9 +368,9 @@ export async function runImport(
       return { ...r, organisation_id: org }
     })
     stats.historical_quotes = { inserted, updated, failed: skipped }
-    await upsertBatches(supabase, "historical_quotes", payload, "organisation_id,quote_number", stats.historical_quotes, dbErrors)
+    await upsertBatches(db, "historical_quotes", payload, "organisation_id,quote_number", stats.historical_quotes, dbErrors)
 
-    const quoteMap = await fetchKeyIdMap(supabase, "historical_quotes", org, "quote_number")
+    const quoteMap = await fetchKeyIdMap(db, "historical_quotes", org, "quote_number")
     const itemDedup: ReturnType<typeof parseQuoteItems>["rows"][number]["row"][] = []
     let itemSkips = 0
     for (const csv of filesOfKind(files, "quote_items")) {
@@ -373,7 +381,7 @@ export async function runImport(
     }
     const affectedNumbers = [...new Set(itemDedup.map((r) => r.quote_number))]
     for (const c of chunk(affectedNumbers, BATCH)) {
-      const { error } = await supabase
+      const { error } = await db
         .from("historical_quote_items")
         .delete()
         .eq("organisation_id", org)
@@ -387,7 +395,7 @@ export async function runImport(
       else qInserted++
       return { ...r, organisation_id: org, quote_id: quoteMap.get(r.quote_number) ?? null }
     })
-    const failed = await insertBatches(supabase, "historical_quote_items", itemPayload, dbErrors)
+    const failed = await insertBatches(db, "historical_quote_items", itemPayload, dbErrors)
     stats.historical_quote_items = { inserted: qInserted, updated: qUpdated, failed: itemSkips + failed }
   }
 

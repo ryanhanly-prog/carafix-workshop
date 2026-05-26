@@ -1,6 +1,7 @@
 "use server"
 
 import { createClient } from "@/lib/supabase/server"
+import { getCurrentOrgId } from "@/lib/actions/org"
 import { toDateString } from "@/lib/work-days"
 import type { Enums } from "@/lib/database.types"
 
@@ -19,6 +20,8 @@ export async function createPart(
   input: PartInput
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
+  const organisationId = await getCurrentOrgId(supabase)
+  if (!organisationId) return { error: "No organisation for current user." }
   const { error } = await supabase.from("parts").insert({
     job_id: jobId,
     description: input.description.trim(),
@@ -28,6 +31,7 @@ export async function createPart(
     status: input.status,
     ordered_date: input.ordered_date || null,
     eta_date: input.eta_date || null,
+    organisation_id: organisationId,
   })
   if (error) return { error: error.message }
   return {}

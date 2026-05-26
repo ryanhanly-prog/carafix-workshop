@@ -3,6 +3,7 @@
 import { parseISO } from "date-fns"
 
 import { createClient } from "@/lib/supabase/server"
+import { getCurrentOrgId } from "@/lib/actions/org"
 import { expectedFinishDate, toDateString } from "@/lib/work-days"
 import type { Enums } from "@/lib/database.types"
 
@@ -28,6 +29,8 @@ export async function createJob(
   input: CreateJobInput
 ): Promise<{ error: string } | { id: string }> {
   const supabase = await createClient()
+  const organisationId = await getCurrentOrgId(supabase)
+  if (!organisationId) return { error: "No organisation for current user." }
   const expected = expectedFinishDate(
     parseISO(input.jobStartDate),
     input.quotedHours
@@ -37,6 +40,7 @@ export async function createJob(
     .from("jobs")
     .insert({
       job_number: "", // filled by the set_job_number trigger
+      organisation_id: organisationId,
       location_id: input.locationId,
       customer_id: input.customerId,
       van_id: input.vanId,
