@@ -17,7 +17,9 @@
       "Bash(npx tsc *)",
       "Bash(npm run *)",
       "Bash(npx next *)",
-      "PowerShell(Get-NetTCPConnection *)"
+      "PowerShell(Get-NetTCPConnection *)",
+      "Bash(git commit -q -m ' *)",
+      "Bash(git push *)"
     ]
   }
 }
