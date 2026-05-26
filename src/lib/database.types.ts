@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -21,6 +21,7 @@ export type Database = {
           generated_at: string | null
           id: string
           location_id: string | null
+          organisation_id: string
         }
         Insert: {
           briefing_date: string
@@ -28,6 +29,7 @@ export type Database = {
           generated_at?: string | null
           id?: string
           location_id?: string | null
+          organisation_id: string
         }
         Update: {
           briefing_date?: string
@@ -35,6 +37,7 @@ export type Database = {
           generated_at?: string | null
           id?: string
           location_id?: string | null
+          organisation_id?: string
         }
         Relationships: [
           {
@@ -42,6 +45,13 @@ export type Database = {
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_briefings_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
             referencedColumns: ["id"]
           },
         ]
@@ -67,6 +77,7 @@ export type Database = {
           default_location_id: string | null
           full_name: string | null
           id: string
+          organisation_id: string
           role: string
         }
         Insert: {
@@ -74,6 +85,7 @@ export type Database = {
           default_location_id?: string | null
           full_name?: string | null
           id: string
+          organisation_id: string
           role: string
         }
         Update: {
@@ -81,6 +93,7 @@ export type Database = {
           default_location_id?: string | null
           full_name?: string | null
           id?: string
+          organisation_id?: string
           role?: string
         }
         Relationships: [
@@ -91,6 +104,13 @@ export type Database = {
             referencedRelation: "locations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "app_users_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bays: {
@@ -99,6 +119,7 @@ export type Database = {
           id: string
           location_id: string | null
           name: string
+          organisation_id: string
           type: Database["public"]["Enums"]["bay_type"]
         }
         Insert: {
@@ -106,6 +127,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           name: string
+          organisation_id: string
           type?: Database["public"]["Enums"]["bay_type"]
         }
         Update: {
@@ -113,6 +135,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           name?: string
+          organisation_id?: string
           type?: Database["public"]["Enums"]["bay_type"]
         }
         Relationships: [
@@ -121,6 +144,13 @@ export type Database = {
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bays_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
             referencedColumns: ["id"]
           },
         ]
@@ -132,6 +162,7 @@ export type Database = {
           id: string
           name: string
           notes: string | null
+          organisation_id: string
           phone: string | null
         }
         Insert: {
@@ -140,6 +171,7 @@ export type Database = {
           id?: string
           name: string
           notes?: string | null
+          organisation_id: string
           phone?: string | null
         }
         Update: {
@@ -148,9 +180,387 @@ export type Database = {
           id?: string
           name?: string
           notes?: string | null
+          organisation_id?: string
           phone?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "customers_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historical_invoice_items: {
+        Row: {
+          category: string | null
+          cogs: number | null
+          created_at_external: string | null
+          description: string | null
+          details: string | null
+          discount_percentage: number | null
+          id: string
+          imported_at: string | null
+          invoice_id: string | null
+          invoice_number: string
+          net_amount: number | null
+          organisation_id: string
+          quantity: number | null
+          salesperson: string | null
+          stock_category: string | null
+          stock_name: string | null
+          stock_number: string | null
+          tax_amount: number | null
+          taxable: boolean | null
+          total_amount: number | null
+          unit_cost: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          cogs?: number | null
+          created_at_external?: string | null
+          description?: string | null
+          details?: string | null
+          discount_percentage?: number | null
+          id?: string
+          imported_at?: string | null
+          invoice_id?: string | null
+          invoice_number: string
+          net_amount?: number | null
+          organisation_id: string
+          quantity?: number | null
+          salesperson?: string | null
+          stock_category?: string | null
+          stock_name?: string | null
+          stock_number?: string | null
+          tax_amount?: number | null
+          taxable?: boolean | null
+          total_amount?: number | null
+          unit_cost?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          cogs?: number | null
+          created_at_external?: string | null
+          description?: string | null
+          details?: string | null
+          discount_percentage?: number | null
+          id?: string
+          imported_at?: string | null
+          invoice_id?: string | null
+          invoice_number?: string
+          net_amount?: number | null
+          organisation_id?: string
+          quantity?: number | null
+          salesperson?: string | null
+          stock_category?: string | null
+          stock_name?: string | null
+          stock_number?: string | null
+          tax_amount?: number | null
+          taxable?: boolean | null
+          total_amount?: number | null
+          unit_cost?: number | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "historical_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_invoice_items_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historical_invoices: {
+        Row: {
+          amount_due: number | null
+          comments: string | null
+          created_at_external: string | null
+          customer_email: string | null
+          customer_external_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          description: string | null
+          due_date: string | null
+          first_job_type: string | null
+          id: string
+          import_batch_id: string | null
+          imported_at: string | null
+          internal_notes: string | null
+          invoice_number: string
+          issue_date: string | null
+          job_end_date: string | null
+          job_number: string | null
+          job_start_date: string | null
+          job_status: string | null
+          mechanics: string | null
+          net_amount: number | null
+          organisation_id: string
+          paid_amount: number | null
+          tax_amount: number | null
+          total_amount: number | null
+          total_cost: number | null
+          vehicle_external_id: string | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+          vehicle_registration: string | null
+        }
+        Insert: {
+          amount_due?: number | null
+          comments?: string | null
+          created_at_external?: string | null
+          customer_email?: string | null
+          customer_external_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          description?: string | null
+          due_date?: string | null
+          first_job_type?: string | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          internal_notes?: string | null
+          invoice_number: string
+          issue_date?: string | null
+          job_end_date?: string | null
+          job_number?: string | null
+          job_start_date?: string | null
+          job_status?: string | null
+          mechanics?: string | null
+          net_amount?: number | null
+          organisation_id: string
+          paid_amount?: number | null
+          tax_amount?: number | null
+          total_amount?: number | null
+          total_cost?: number | null
+          vehicle_external_id?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_registration?: string | null
+        }
+        Update: {
+          amount_due?: number | null
+          comments?: string | null
+          created_at_external?: string | null
+          customer_email?: string | null
+          customer_external_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          description?: string | null
+          due_date?: string | null
+          first_job_type?: string | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          internal_notes?: string | null
+          invoice_number?: string
+          issue_date?: string | null
+          job_end_date?: string | null
+          job_number?: string | null
+          job_start_date?: string | null
+          job_status?: string | null
+          mechanics?: string | null
+          net_amount?: number | null
+          organisation_id?: string
+          paid_amount?: number | null
+          tax_amount?: number | null
+          total_amount?: number | null
+          total_cost?: number | null
+          vehicle_external_id?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_registration?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_invoices_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_invoices_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historical_quote_items: {
+        Row: {
+          category: string | null
+          description: string | null
+          id: string
+          imported_at: string | null
+          net_amount: number | null
+          organisation_id: string
+          quantity: number | null
+          quote_id: string | null
+          quote_number: string
+          stock_category: string | null
+          stock_name: string | null
+          stock_number: string | null
+          tax_amount: number | null
+          taxable: boolean | null
+          total_amount: number | null
+          unit_cost: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          description?: string | null
+          id?: string
+          imported_at?: string | null
+          net_amount?: number | null
+          organisation_id: string
+          quantity?: number | null
+          quote_id?: string | null
+          quote_number: string
+          stock_category?: string | null
+          stock_name?: string | null
+          stock_number?: string | null
+          tax_amount?: number | null
+          taxable?: boolean | null
+          total_amount?: number | null
+          unit_cost?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          description?: string | null
+          id?: string
+          imported_at?: string | null
+          net_amount?: number | null
+          organisation_id?: string
+          quantity?: number | null
+          quote_id?: string | null
+          quote_number?: string
+          stock_category?: string | null
+          stock_name?: string | null
+          stock_number?: string | null
+          tax_amount?: number | null
+          taxable?: boolean | null
+          total_amount?: number | null
+          unit_cost?: number | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_quote_items_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_quote_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "historical_quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historical_quotes: {
+        Row: {
+          assessed_by: string | null
+          comments: string | null
+          customer_email: string | null
+          customer_external_id: string | null
+          customer_name: string | null
+          customer_phone: string | null
+          description: string | null
+          estimated_by: string | null
+          gst_amount: number | null
+          id: string
+          import_batch_id: string | null
+          imported_at: string | null
+          issue_date: string | null
+          net_amount: number | null
+          organisation_id: string
+          quote_number: string
+          status: string | null
+          total_amount: number | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+          vehicle_year: string | null
+        }
+        Insert: {
+          assessed_by?: string | null
+          comments?: string | null
+          customer_email?: string | null
+          customer_external_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          description?: string | null
+          estimated_by?: string | null
+          gst_amount?: number | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          issue_date?: string | null
+          net_amount?: number | null
+          organisation_id: string
+          quote_number: string
+          status?: string | null
+          total_amount?: number | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_year?: string | null
+        }
+        Update: {
+          assessed_by?: string | null
+          comments?: string | null
+          customer_email?: string | null
+          customer_external_id?: string | null
+          customer_name?: string | null
+          customer_phone?: string | null
+          description?: string | null
+          estimated_by?: string | null
+          gst_amount?: number | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          issue_date?: string | null
+          net_amount?: number | null
+          organisation_id?: string
+          quote_number?: string
+          status?: string | null
+          total_amount?: number | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_year?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_quotes_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_quotes_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       holidays: {
         Row: {
@@ -158,18 +568,21 @@ export type Database = {
           id: string
           location_id: string | null
           name: string | null
+          organisation_id: string
         }
         Insert: {
           date: string
           id?: string
           location_id?: string | null
           name?: string | null
+          organisation_id: string
         }
         Update: {
           date?: string
           id?: string
           location_id?: string | null
           name?: string | null
+          organisation_id?: string
         }
         Relationships: [
           {
@@ -177,6 +590,69 @@ export type Database = {
             columns: ["location_id"]
             isOneToOne: false
             referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "holidays_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      import_batches: {
+        Row: {
+          completed_at: string | null
+          error_message: string | null
+          files_uploaded: string[] | null
+          id: string
+          organisation_id: string
+          rows_failed: number | null
+          rows_inserted: number | null
+          rows_updated: number | null
+          source: string
+          stats: Json | null
+          status: string
+          uploaded_at: string | null
+          uploaded_by: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          error_message?: string | null
+          files_uploaded?: string[] | null
+          id?: string
+          organisation_id: string
+          rows_failed?: number | null
+          rows_inserted?: number | null
+          rows_updated?: number | null
+          source: string
+          stats?: Json | null
+          status?: string
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          error_message?: string | null
+          files_uploaded?: string[] | null
+          id?: string
+          organisation_id?: string
+          rows_failed?: number | null
+          rows_inserted?: number | null
+          rows_updated?: number | null
+          source?: string
+          stats?: Json | null
+          status?: string
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "import_batches_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
             referencedColumns: ["id"]
           },
         ]
@@ -188,6 +664,7 @@ export type Database = {
           id: string
           job_id: string | null
           kind: string | null
+          organisation_id: string
           storage_path: string
           task_id: string | null
           transcript: string | null
@@ -199,6 +676,7 @@ export type Database = {
           id?: string
           job_id?: string | null
           kind?: string | null
+          organisation_id: string
           storage_path: string
           task_id?: string | null
           transcript?: string | null
@@ -210,6 +688,7 @@ export type Database = {
           id?: string
           job_id?: string | null
           kind?: string | null
+          organisation_id?: string
           storage_path?: string
           task_id?: string | null
           transcript?: string | null
@@ -231,6 +710,13 @@ export type Database = {
             referencedColumns: ["job_id"]
           },
           {
+            foreignKeyName: "job_attachments_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "job_attachments_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
@@ -246,6 +732,7 @@ export type Database = {
           from_status: Database["public"]["Enums"]["job_status"] | null
           id: string
           job_id: string | null
+          organisation_id: string
           reason: string | null
           to_status: Database["public"]["Enums"]["job_status"] | null
         }
@@ -255,6 +742,7 @@ export type Database = {
           from_status?: Database["public"]["Enums"]["job_status"] | null
           id?: string
           job_id?: string | null
+          organisation_id: string
           reason?: string | null
           to_status?: Database["public"]["Enums"]["job_status"] | null
         }
@@ -264,6 +752,7 @@ export type Database = {
           from_status?: Database["public"]["Enums"]["job_status"] | null
           id?: string
           job_id?: string | null
+          organisation_id?: string
           reason?: string | null
           to_status?: Database["public"]["Enums"]["job_status"] | null
         }
@@ -281,6 +770,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_job_rollup"
             referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_status_log_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -306,6 +802,7 @@ export type Database = {
           job_type: Database["public"]["Enums"]["job_type"] | null
           location_id: string
           mechanic_desk_ref: string | null
+          organisation_id: string
           picked_up_date: string | null
           pickup_booked_date: string | null
           primary_skill_id: string | null
@@ -338,6 +835,7 @@ export type Database = {
           job_type?: Database["public"]["Enums"]["job_type"] | null
           location_id: string
           mechanic_desk_ref?: string | null
+          organisation_id: string
           picked_up_date?: string | null
           pickup_booked_date?: string | null
           primary_skill_id?: string | null
@@ -370,6 +868,7 @@ export type Database = {
           job_type?: Database["public"]["Enums"]["job_type"] | null
           location_id?: string
           mechanic_desk_ref?: string | null
+          organisation_id?: string
           picked_up_date?: string | null
           pickup_booked_date?: string | null
           primary_skill_id?: string | null
@@ -418,6 +917,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "jobs_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "jobs_primary_skill_id_fkey"
             columns: ["primary_skill_id"]
             isOneToOne: false
@@ -447,6 +953,7 @@ export type Database = {
           created_at: string | null
           id: string
           name: string
+          organisation_id: string
         }
         Insert: {
           active?: boolean | null
@@ -454,6 +961,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           name: string
+          organisation_id: string
         }
         Update: {
           active?: boolean | null
@@ -461,6 +969,66 @@ export type Database = {
           created_at?: string | null
           id?: string
           name?: string
+          organisation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "locations_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      organisations: {
+        Row: {
+          abn: string | null
+          active: boolean | null
+          address: string | null
+          brand_primary_color: string | null
+          created_at: string | null
+          email: string | null
+          id: string
+          is_platform_owner: boolean | null
+          logo_url: string | null
+          name: string
+          phone: string | null
+          slug: string
+          trading_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          abn?: string | null
+          active?: boolean | null
+          address?: string | null
+          brand_primary_color?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_platform_owner?: boolean | null
+          logo_url?: string | null
+          name: string
+          phone?: string | null
+          slug: string
+          trading_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          abn?: string | null
+          active?: boolean | null
+          address?: string | null
+          brand_primary_color?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          is_platform_owner?: boolean | null
+          logo_url?: string | null
+          name?: string
+          phone?: string | null
+          slug?: string
+          trading_name?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -475,6 +1043,7 @@ export type Database = {
           job_id: string
           notes: string | null
           ordered_date: string | null
+          organisation_id: string
           quantity: number | null
           received_date: string | null
           status: Database["public"]["Enums"]["part_status"]
@@ -491,6 +1060,7 @@ export type Database = {
           job_id: string
           notes?: string | null
           ordered_date?: string | null
+          organisation_id: string
           quantity?: number | null
           received_date?: string | null
           status?: Database["public"]["Enums"]["part_status"]
@@ -507,6 +1077,7 @@ export type Database = {
           job_id?: string
           notes?: string | null
           ordered_date?: string | null
+          organisation_id?: string
           quantity?: number | null
           received_date?: string | null
           status?: Database["public"]["Enums"]["part_status"]
@@ -527,6 +1098,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_job_rollup"
             referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "parts_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "parts_task_id_fkey"
@@ -545,6 +1123,7 @@ export type Database = {
           job_id: string | null
           new_date: string | null
           old_date: string | null
+          organisation_id: string
           reason: string | null
         }
         Insert: {
@@ -554,6 +1133,7 @@ export type Database = {
           job_id?: string | null
           new_date?: string | null
           old_date?: string | null
+          organisation_id: string
           reason?: string | null
         }
         Update: {
@@ -563,6 +1143,7 @@ export type Database = {
           job_id?: string | null
           new_date?: string | null
           old_date?: string | null
+          organisation_id?: string
           reason?: string | null
         }
         Relationships: [
@@ -579,6 +1160,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_job_rollup"
             referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "promise_date_log_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -600,6 +1188,175 @@ export type Database = {
         }
         Relationships: []
       }
+      stock_item_suppliers: {
+        Row: {
+          is_primary: boolean | null
+          stock_item_id: string
+          supplier_id: string
+          supplier_stock_number: string | null
+        }
+        Insert: {
+          is_primary?: boolean | null
+          stock_item_id: string
+          supplier_id: string
+          supplier_stock_number?: string | null
+        }
+        Update: {
+          is_primary?: boolean | null
+          stock_item_id?: string
+          supplier_id?: string
+          supplier_stock_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_item_suppliers_stock_item_id_fkey"
+            columns: ["stock_item_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_item_suppliers_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_items: {
+        Row: {
+          allocated: number | null
+          available: number | null
+          bin_location: string | null
+          brand: string | null
+          buy_price: number | null
+          category: string | null
+          created_at: string | null
+          deactivated: boolean | null
+          description: string | null
+          external_id: string | null
+          id: string
+          is_non_stock: boolean | null
+          last_purchase_date: string | null
+          last_sales_date: string | null
+          markup_percentage: number | null
+          model: string | null
+          name: string
+          ordered: number | null
+          organisation_id: string
+          quantity: number | null
+          sell_price: number | null
+          stock_number: string
+          tags: string | null
+          taxable: boolean | null
+          unit_of_measure: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          allocated?: number | null
+          available?: number | null
+          bin_location?: string | null
+          brand?: string | null
+          buy_price?: number | null
+          category?: string | null
+          created_at?: string | null
+          deactivated?: boolean | null
+          description?: string | null
+          external_id?: string | null
+          id?: string
+          is_non_stock?: boolean | null
+          last_purchase_date?: string | null
+          last_sales_date?: string | null
+          markup_percentage?: number | null
+          model?: string | null
+          name: string
+          ordered?: number | null
+          organisation_id: string
+          quantity?: number | null
+          sell_price?: number | null
+          stock_number: string
+          tags?: string | null
+          taxable?: boolean | null
+          unit_of_measure?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          allocated?: number | null
+          available?: number | null
+          bin_location?: string | null
+          brand?: string | null
+          buy_price?: number | null
+          category?: string | null
+          created_at?: string | null
+          deactivated?: boolean | null
+          description?: string | null
+          external_id?: string | null
+          id?: string
+          is_non_stock?: boolean | null
+          last_purchase_date?: string | null
+          last_sales_date?: string | null
+          markup_percentage?: number | null
+          model?: string | null
+          name?: string
+          ordered?: number | null
+          organisation_id?: string
+          quantity?: number | null
+          sell_price?: number | null
+          stock_number?: string
+          tags?: string | null
+          taxable?: boolean | null
+          unit_of_measure?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_items_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suppliers: {
+        Row: {
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string | null
+          id: string
+          name: string
+          notes: string | null
+          organisation_id: string
+        }
+        Insert: {
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          organisation_id: string
+        }
+        Update: {
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          organisation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           actual_hours: number | null
@@ -611,6 +1368,7 @@ export type Database = {
           id: string
           job_id: string
           notes: string | null
+          organisation_id: string
           quoted_hours: number
           scheduled_date: string | null
           scheduled_hours: number | null
@@ -630,6 +1388,7 @@ export type Database = {
           id?: string
           job_id: string
           notes?: string | null
+          organisation_id: string
           quoted_hours: number
           scheduled_date?: string | null
           scheduled_hours?: number | null
@@ -649,6 +1408,7 @@ export type Database = {
           id?: string
           job_id?: string
           notes?: string | null
+          organisation_id?: string
           quoted_hours?: number
           scheduled_date?: string | null
           scheduled_hours?: number | null
@@ -693,6 +1453,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_job_rollup"
             referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "tasks_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "tasks_skill_id_fkey"
@@ -767,6 +1534,7 @@ export type Database = {
           id: string
           location_id: string | null
           name: string
+          organisation_id: string
           phone: string | null
           productive_hours_per_day: number | null
           role: Database["public"]["Enums"]["tech_role"] | null
@@ -781,6 +1549,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           name: string
+          organisation_id: string
           phone?: string | null
           productive_hours_per_day?: number | null
           role?: Database["public"]["Enums"]["tech_role"] | null
@@ -795,6 +1564,7 @@ export type Database = {
           id?: string
           location_id?: string | null
           name?: string
+          organisation_id?: string
           phone?: string | null
           productive_hours_per_day?: number | null
           role?: Database["public"]["Enums"]["tech_role"] | null
@@ -808,6 +1578,13 @@ export type Database = {
             referencedRelation: "locations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "technicians_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
         ]
       }
       vans: {
@@ -818,6 +1595,7 @@ export type Database = {
           make: string | null
           model: string | null
           notes: string | null
+          organisation_id: string
           rego: string | null
           year: number | null
         }
@@ -828,6 +1606,7 @@ export type Database = {
           make?: string | null
           model?: string | null
           notes?: string | null
+          organisation_id: string
           rego?: string | null
           year?: number | null
         }
@@ -838,6 +1617,7 @@ export type Database = {
           make?: string | null
           model?: string | null
           notes?: string | null
+          organisation_id?: string
           rego?: string | null
           year?: number | null
         }
@@ -847,6 +1627,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vans_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
             referencedColumns: ["id"]
           },
         ]
@@ -928,6 +1715,7 @@ export type Database = {
       }
     }
     Functions: {
+      current_user_org_id: { Args: never; Returns: string }
       is_controller: { Args: never; Returns: boolean }
     }
     Enums: {
