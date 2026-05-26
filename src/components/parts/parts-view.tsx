@@ -87,7 +87,6 @@ export function PartsView() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold tracking-tight">Parts</h1>
       <p className="text-sm text-muted-foreground">
         Outstanding parts (Needed or Ordered) across all jobs at this location.
         Full editing happens on the job page.

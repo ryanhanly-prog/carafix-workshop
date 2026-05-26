@@ -159,6 +159,7 @@ export type Database = {
         Row: {
           created_at: string | null
           email: string | null
+          external_id: string | null
           id: string
           name: string
           notes: string | null
@@ -168,6 +169,7 @@ export type Database = {
         Insert: {
           created_at?: string | null
           email?: string | null
+          external_id?: string | null
           id?: string
           name: string
           notes?: string | null
@@ -177,6 +179,7 @@ export type Database = {
         Update: {
           created_at?: string | null
           email?: string | null
+          external_id?: string | null
           id?: string
           name?: string
           notes?: string | null
@@ -1222,6 +1225,13 @@ export type Database = {
             referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "stock_item_suppliers_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_supplier_rollup"
+            referencedColumns: ["supplier_id"]
+          },
         ]
       }
       stock_items: {
@@ -1677,6 +1687,40 @@ export type Database = {
           task_count: number | null
         }
         Relationships: []
+      }
+      v_stock_categories: {
+        Row: {
+          category: string | null
+          organisation_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_items_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      v_supplier_rollup: {
+        Row: {
+          avg_markup: number | null
+          item_count: number | null
+          last_order_date: string | null
+          name: string | null
+          organisation_id: string | null
+          supplier_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "suppliers_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       v_tech_daily_load: {
         Row: {
