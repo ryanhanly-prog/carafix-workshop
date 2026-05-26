@@ -3,29 +3,30 @@ import type { Enums } from "@/lib/database.types"
 
 export type JobStatus = Enums<"job_status">
 export type Priority = Enums<"priority_level">
-export type JobCategory = Enums<"job_category">
-export type WorkType = Enums<"work_type">
+export type BillingType = Enums<"billing_type">
+export type JobType = Enums<"job_type">
 export type PartStatus = Enums<"part_status">
 export type InvoiceStatus = Enums<"invoice_status">
 export type TechRole = Enums<"tech_role">
 
 export const JOB_STATUSES = Constants.public.Enums.job_status
 export const PRIORITIES = Constants.public.Enums.priority_level
-export const JOB_CATEGORIES = Constants.public.Enums.job_category
-export const WORK_TYPES = Constants.public.Enums.work_type
+export const BILLING_TYPES = Constants.public.Enums.billing_type
+export const JOB_TYPES = Constants.public.Enums.job_type
 export const PART_STATUSES = Constants.public.Enums.part_status
 export const INVOICE_STATUSES = Constants.public.Enums.invoice_status
 export const TECH_ROLES = Constants.public.Enums.tech_role
 
 /** Tailwind classes per the agreed status colour spec. */
 export const statusBadgeClass: Record<JobStatus, string> = {
-  "Booked In": "bg-slate-100 text-slate-700 border-slate-200",
-  "Waiting to Start": "bg-amber-100 text-amber-800 border-amber-200",
+  Booked: "bg-slate-100 text-slate-700 border-slate-200",
+  Arrived: "bg-amber-100 text-amber-800 border-amber-200",
   "In Progress": "bg-blue-100 text-blue-800 border-blue-200",
-  "Waiting on Parts": "bg-orange-100 text-orange-800 border-orange-200",
+  "On Hold": "bg-orange-100 text-orange-800 border-orange-200",
+  Completed: "bg-teal-100 text-teal-800 border-teal-200",
   "QA Check": "bg-purple-100 text-purple-800 border-purple-200",
-  "Ready for Pickup": "bg-green-100 text-green-800 border-green-200",
-  "Picked Up": "bg-muted text-muted-foreground border-transparent",
+  Invoiced: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  "Picked Up": "bg-gray-100 text-gray-500 border-transparent",
 }
 
 export const priorityBadgeClass: Record<Priority, string> = {
@@ -42,3 +43,27 @@ export const partStatusBadgeClass: Record<PartStatus, string> = {
   Fitted: "bg-emerald-100 text-emerald-800 border-emerald-200",
   Cancelled: "bg-muted text-muted-foreground border-transparent",
 }
+
+/** The natural next status in the lifecycle, highlighted in the status picker. */
+export const nextStatus: Partial<Record<JobStatus, JobStatus>> = {
+  Booked: "Arrived",
+  Arrived: "In Progress",
+  "In Progress": "Completed",
+  "On Hold": "In Progress",
+  Completed: "QA Check",
+  "QA Check": "Invoiced",
+  Invoiced: "Picked Up",
+}
+
+/**
+ * Reasons a job sits On Hold. A plain list (not an enum) so it can grow without
+ * a migration. "Other" prompts for free text appended to the saved reason.
+ */
+export const HOLD_REASONS = [
+  "Waiting on parts",
+  "Waiting on customer",
+  "Waiting on insurer approval",
+  "Waiting on assessor",
+  "Other",
+] as const
+export type HoldReason = (typeof HOLD_REASONS)[number]

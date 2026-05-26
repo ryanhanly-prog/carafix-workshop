@@ -1,10 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { AlertTriangle, CheckCircle2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 
-import { PriorityBadge, StatusBadge } from "@/components/jobs/badges"
+import { JobFlagIcons, PriorityBadge, StatusBadge } from "@/components/jobs/badges"
 import { NewJobDialog } from "@/components/jobs/new-job-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -24,17 +23,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import { cn } from "@/lib/utils"
 import { formatDate, surname } from "@/lib/format"
-import { JOB_CATEGORIES, JOB_STATUSES } from "@/lib/job-display"
+import { BILLING_TYPES, JOB_STATUSES } from "@/lib/job-display"
 import { useLocation } from "@/lib/location-context"
 import { useJobs, useTechnicians } from "@/lib/queries"
 
 const ALL = "all"
+const COLUMN_COUNT = 13
 
 export function JobsView() {
   const { currentLocationId } = useLocation()
@@ -44,7 +40,7 @@ export function JobsView() {
 
   const [status, setStatus] = React.useState<string>(ALL)
   const [techId, setTechId] = React.useState<string>(ALL)
-  const [category, setCategory] = React.useState<string>(ALL)
+  const [billingType, setBillingType] = React.useState<string>(ALL)
   const [search, setSearch] = React.useState("")
 
   const filtered = React.useMemo(() => {
@@ -53,13 +49,9 @@ export function JobsView() {
     return jobs.filter((j) => {
       if (status !== ALL && j.status !== status) return false
       if (techId !== ALL && j.assigned_tech_id !== techId) return false
-      if (category !== ALL && j.category !== category) return false
+      if (billingType !== ALL && j.billing_type !== billingType) return false
       if (term) {
-        const haystack = [
-          j.job_number,
-          j.customers?.name,
-          j.vans?.rego,
-        ]
+        const haystack = [j.job_number, j.customers?.name, j.vans?.rego]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
@@ -67,7 +59,7 @@ export function JobsView() {
       }
       return true
     })
-  }, [jobs, status, techId, category, search])
+  }, [jobs, status, techId, billingType, search])
 
   return (
     <div className="space-y-4">
@@ -109,15 +101,15 @@ export function JobsView() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={category} onValueChange={setCategory}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue placeholder="Category" />
+        <Select value={billingType} onValueChange={setBillingType}>
+          <SelectTrigger className="w-[150px]">
+            <SelectValue placeholder="Billing type" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value={ALL}>All categories</SelectItem>
-            {JOB_CATEGORIES.map((c) => (
-              <SelectItem key={c} value={c}>
-                {c}
+            <SelectItem value={ALL}>All billing types</SelectItem>
+            {BILLING_TYPES.map((b) => (
+              <SelectItem key={b} value={b}>
+                {b}
               </SelectItem>
             ))}
           </SelectContent>
@@ -132,11 +124,14 @@ export function JobsView() {
                 <TableHead>Job #</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Van</TableHead>
-                <TableHead>Category</TableHead>
+                <TableHead>Job type</TableHead>
+                <TableHead>Billing type</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Priority</TableHead>
                 <TableHead>Tech</TableHead>
-                <TableHead>Planned start</TableHead>
+                <TableHead>Booking</TableHead>
+                <TableHead>Job start</TableHead>
+                <TableHead>Customer due</TableHead>
                 <TableHead>Expected finish</TableHead>
                 <TableHead className="text-right">Flags</TableHead>
               </TableRow>
@@ -145,23 +140,21 @@ export function JobsView() {
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
-                    <TableCell colSpan={10}>
+                    <TableCell colSpan={COLUMN_COUNT}>
                       <Skeleton className="h-6 w-full" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10}>
+                  <TableCell colSpan={COLUMN_COUNT}>
                     <div className="flex flex-col items-center gap-3 py-12 text-center">
                       <p className="text-muted-foreground">
                         {jobs && jobs.length === 0
                           ? "No jobs at this location yet — create one."
                           : "No jobs match these filters."}
                       </p>
-                      {jobs &&
-                      jobs.length === 0 &&
-                      currentLocationId ? (
+                      {jobs && jobs.length === 0 && currentLocationId ? (
                         <NewJobDialog locationId={currentLocationId} />
                       ) : null}
                     </div>
@@ -179,7 +172,8 @@ export function JobsView() {
                     <TableCell className="text-muted-foreground">
                       {[j.vans?.make, j.vans?.model].filter(Boolean).join(" ") || "—"}
                     </TableCell>
-                    <TableCell>{j.category}</TableCell>
+                    <TableCell>{j.job_type ?? "—"}</TableCell>
+                    <TableCell>{j.billing_type}</TableCell>
                     <TableCell>
                       <StatusBadge status={j.status} />
                     </TableCell>
@@ -201,27 +195,22 @@ export function JobsView() {
                         <span className="text-muted-foreground">Unassigned</span>
                       )}
                     </TableCell>
-                    <TableCell>{formatDate(j.planned_start_date)}</TableCell>
+                    <TableCell>{formatDate(j.booking_date)}</TableCell>
+                    <TableCell>{formatDate(j.job_start_date)}</TableCell>
+                    <TableCell
+                      className={cn(
+                        j.is_urgent && "font-semibold text-red-600"
+                      )}
+                    >
+                      {formatDate(j.customer_promised_date)}
+                    </TableCell>
                     <TableCell>{formatDate(j.expected_finish_date)}</TableCell>
                     <TableCell className="text-right">
-                      <span className="inline-flex items-center justify-end gap-1.5">
-                        {j.is_delayed ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <AlertTriangle className="size-4 text-red-600" />
-                            </TooltipTrigger>
-                            <TooltipContent>Delayed</TooltipContent>
-                          </Tooltip>
-                        ) : null}
-                        {j.is_pickup_ready ? (
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <CheckCircle2 className="size-4 animate-pulse text-green-600" />
-                            </TooltipTrigger>
-                            <TooltipContent>Ready for pickup</TooltipContent>
-                          </Tooltip>
-                        ) : null}
-                      </span>
+                      <JobFlagIcons
+                        isDelayed={j.is_delayed}
+                        isUrgent={j.is_urgent}
+                        isPickupReady={j.is_pickup_ready}
+                      />
                     </TableCell>
                   </TableRow>
                 ))

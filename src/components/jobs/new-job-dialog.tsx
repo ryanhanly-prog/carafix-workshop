@@ -47,11 +47,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { createJob } from "@/lib/actions/jobs"
-import {
-  JOB_CATEGORIES,
-  PRIORITIES,
-  WORK_TYPES,
-} from "@/lib/job-display"
+import { BILLING_TYPES, JOB_TYPES, PRIORITIES } from "@/lib/job-display"
 import { useBays, useTechnicians } from "@/lib/queries"
 import { nextWorkingDay, toDateString } from "@/lib/work-days"
 
@@ -60,22 +56,18 @@ const NONE = "none"
 const schema = z.object({
   customerId: z.string().min(1, "Select or create a customer"),
   vanId: z.string().min(1, "Select or add a van"),
-  category: z.enum(["Private", "Insurance", "Warranty", "Dealer"]),
+  billingType: z.enum(["Private", "Insurance", "Warranty", "Dealer"]),
   insuranceClaimNumber: z.string().optional(),
   warrantyReference: z.string().optional(),
   priority: z.enum(["Low", "Normal", "High", "Urgent"]),
   description: z.string().optional(),
-  workType: z.enum([
-    "Service",
-    "Repair",
-    "Pre-purchase inspection",
-    "Modification",
-    "Other",
-  ]),
+  jobType: z.enum(["Servicing", "Repairs", "Upgrades & Installation", "Other"]),
   quotedHours: z.coerce.number().min(0.5, "Minimum 0.5 hours"),
   assignedTechId: z.string(),
   bayId: z.string(),
-  plannedStartDate: z.date(),
+  bookingDate: z.date(),
+  jobStartDate: z.date(),
+  customerPromisedDate: z.date().optional(),
 })
 
 type FormValues = z.input<typeof schema>
@@ -95,20 +87,22 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
     defaultValues: {
       customerId: "",
       vanId: "",
-      category: "Private",
+      billingType: "Private",
       insuranceClaimNumber: "",
       warrantyReference: "",
       priority: "Normal",
       description: "",
-      workType: "Service",
+      jobType: "Servicing",
       quotedHours: 4,
       assignedTechId: NONE,
       bayId: NONE,
-      plannedStartDate: nextWorkingDay(),
+      bookingDate: new Date(),
+      jobStartDate: nextWorkingDay(),
+      customerPromisedDate: undefined,
     },
   })
 
-  const category = useWatch({ control: form.control, name: "category" })
+  const billingType = useWatch({ control: form.control, name: "billingType" })
 
   function reset() {
     form.reset()
@@ -121,14 +115,18 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
       locationId,
       customerId: values.customerId,
       vanId: values.vanId,
-      category: values.category,
+      billingType: values.billingType,
       priority: values.priority,
-      workType: values.workType,
+      jobType: values.jobType,
       description: values.description,
       quotedHours: Number(values.quotedHours),
       assignedTechId: values.assignedTechId === NONE ? null : values.assignedTechId,
       bayId: values.bayId === NONE ? null : values.bayId,
-      plannedStartDate: toDateString(values.plannedStartDate as Date),
+      bookingDate: toDateString(values.bookingDate as Date),
+      jobStartDate: toDateString(values.jobStartDate as Date),
+      customerPromisedDate: values.customerPromisedDate
+        ? toDateString(values.customerPromisedDate as Date)
+        : null,
       insuranceClaimNumber: values.insuranceClaimNumber,
       warrantyReference: values.warrantyReference,
     })
@@ -208,26 +206,26 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
               )}
             />
 
-            {/* Category */}
+            {/* Billing type */}
             <FormField
               control={form.control}
-              name="category"
+              name="billingType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category</FormLabel>
+                  <FormLabel>Billing type</FormLabel>
                   <FormControl>
                     <RadioGroup
                       className="flex flex-wrap gap-4"
                       value={field.value}
                       onValueChange={field.onChange}
                     >
-                      {JOB_CATEGORIES.map((cat) => (
+                      {BILLING_TYPES.map((bt) => (
                         <label
-                          key={cat}
+                          key={bt}
                           className="flex items-center gap-2 text-sm"
                         >
-                          <RadioGroupItem value={cat} />
-                          {cat}
+                          <RadioGroupItem value={bt} />
+                          {bt}
                         </label>
                       ))}
                     </RadioGroup>
@@ -237,7 +235,7 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
               )}
             />
 
-            {category === "Insurance" ? (
+            {billingType === "Insurance" ? (
               <FormField
                 control={form.control}
                 name="insuranceClaimNumber"
@@ -253,7 +251,7 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
               />
             ) : null}
 
-            {category === "Warranty" ? (
+            {billingType === "Warranty" ? (
               <FormField
                 control={form.control}
                 name="warrantyReference"
@@ -296,13 +294,13 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
                 )}
               />
 
-              {/* Work type */}
+              {/* Job type */}
               <FormField
                 control={form.control}
-                name="workType"
+                name="jobType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Work type</FormLabel>
+                    <FormLabel>Job type</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger>
@@ -310,9 +308,9 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {WORK_TYPES.map((w) => (
-                          <SelectItem key={w} value={w}>
-                            {w}
+                        {JOB_TYPES.map((jt) => (
+                          <SelectItem key={jt} value={jt}>
+                            {jt}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -339,6 +337,40 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
             />
 
             <div className="grid grid-cols-2 gap-4">
+              {/* Booking date */}
+              <FormField
+                control={form.control}
+                name="bookingDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Booking date</FormLabel>
+                    <DatePicker
+                      value={field.value as Date}
+                      onChange={(d) => field.onChange(d)}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Job start date */}
+              <FormField
+                control={form.control}
+                name="jobStartDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Job start date</FormLabel>
+                    <DatePicker
+                      value={field.value as Date}
+                      onChange={(d) => field.onChange(d)}
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               {/* Quoted hours */}
               <FormField
                 control={form.control}
@@ -363,16 +395,17 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
                 )}
               />
 
-              {/* Planned start */}
+              {/* Customer promised pickup date */}
               <FormField
                 control={form.control}
-                name="plannedStartDate"
+                name="customerPromisedDate"
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
-                    <FormLabel>Planned start</FormLabel>
+                    <FormLabel>Customer promised pickup date</FormLabel>
                     <DatePicker
-                      value={field.value as Date}
+                      value={field.value as Date | undefined}
                       onChange={(d) => field.onChange(d)}
+                      placeholder="Optional"
                     />
                     <FormMessage />
                   </FormItem>
@@ -408,7 +441,7 @@ export function NewJobDialog({ locationId }: { locationId: string }) {
                 )}
               />
 
-              {/* Bay */}
+              {/* Bay (low priority, kept at the end) */}
               <FormField
                 control={form.control}
                 name="bayId"

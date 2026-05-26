@@ -10,14 +10,16 @@ export type CreateJobInput = {
   locationId: string
   customerId: string
   vanId: string
-  category: Enums<"job_category">
+  billingType: Enums<"billing_type">
   priority: Enums<"priority_level">
-  workType: Enums<"work_type">
+  jobType: Enums<"job_type">
   description?: string
   quotedHours: number
   assignedTechId?: string | null
   bayId?: string | null
-  plannedStartDate: string
+  bookingDate: string
+  jobStartDate: string
+  customerPromisedDate?: string | null
   insuranceClaimNumber?: string
   warrantyReference?: string
 }
@@ -27,7 +29,7 @@ export async function createJob(
 ): Promise<{ error: string } | { id: string }> {
   const supabase = await createClient()
   const expected = expectedFinishDate(
-    parseISO(input.plannedStartDate),
+    parseISO(input.jobStartDate),
     input.quotedHours
   )
 
@@ -38,22 +40,23 @@ export async function createJob(
       location_id: input.locationId,
       customer_id: input.customerId,
       van_id: input.vanId,
-      category: input.category,
+      billing_type: input.billingType,
       priority: input.priority,
-      work_type: input.workType,
+      job_type: input.jobType,
       description: input.description?.trim() || null,
       quoted_hours: input.quotedHours,
       assigned_tech_id: input.assignedTechId || null,
       bay_id: input.bayId || null,
-      planned_start_date: input.plannedStartDate,
+      job_start_date: input.jobStartDate,
       expected_finish_date: toDateString(expected),
-      booked_in_date: toDateString(new Date()),
+      booking_date: input.bookingDate,
+      customer_promised_date: input.customerPromisedDate || null,
       insurance_claim_number:
-        input.category === "Insurance"
+        input.billingType === "Insurance"
           ? input.insuranceClaimNumber?.trim() || null
           : null,
       warranty_reference:
-        input.category === "Warranty"
+        input.billingType === "Warranty"
           ? input.warrantyReference?.trim() || null
           : null,
     })
@@ -65,14 +68,15 @@ export async function createJob(
 }
 
 export type UpdateJobInput = {
-  category?: Enums<"job_category">
+  billing_type?: Enums<"billing_type">
   priority?: Enums<"priority_level">
-  work_type?: Enums<"work_type">
+  job_type?: Enums<"job_type">
   description?: string | null
   quoted_hours?: number
   assigned_tech_id?: string | null
   bay_id?: string | null
-  planned_start_date?: string | null
+  job_start_date?: string | null
+  customer_promised_date?: string | null
   insurance_claim_number?: string | null
   warranty_reference?: string | null
   internal_notes?: string | null
@@ -91,7 +95,8 @@ export async function updateJob(
 export async function changeJobStatus(
   jobId: string,
   status: Enums<"job_status">,
-  reason?: string
+  reason?: string,
+  holdReason?: string | null
 ): Promise<{ error?: string }> {
   const supabase = await createClient()
 
@@ -102,9 +107,13 @@ export async function changeJobStatus(
     .single()
   if (current?.status === status) return {}
 
+  // hold_reason only applies while On Hold; clear it on any other status.
   const { error } = await supabase
     .from("jobs")
-    .update({ status })
+    .update({
+      status,
+      hold_reason: status === "On Hold" ? holdReason?.trim() || null : null,
+    })
     .eq("id", jobId)
   if (error) return { error: error.message }
 

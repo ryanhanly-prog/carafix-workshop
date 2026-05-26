@@ -29,10 +29,10 @@ export function useJobs(locationId: string | null) {
             "*, customers(name), vans(make, model, rego), technicians(name, colour)"
           )
           .eq("location_id", locationId!)
-          .order("planned_start_date", { ascending: false, nullsFirst: false }),
+          .order("job_start_date", { ascending: false, nullsFirst: false }),
         supabase
           .from("v_job_rollup")
-          .select("job_id, is_delayed, is_pickup_ready")
+          .select("job_id, is_delayed, is_urgent, is_pickup_ready")
           .eq("location_id", locationId!),
       ])
       if (jobsRes.error) throw jobsRes.error
@@ -43,6 +43,7 @@ export function useJobs(locationId: string | null) {
       return (jobsRes.data ?? []).map((j) => ({
         ...j,
         is_delayed: flags.get(j.id)?.is_delayed ?? false,
+        is_urgent: flags.get(j.id)?.is_urgent ?? false,
         is_pickup_ready: flags.get(j.id)?.is_pickup_ready ?? false,
       })) as unknown as JobListRow[]
     },
@@ -53,7 +54,13 @@ export function useJob(jobId: string) {
   const supabase = getBrowserClient()
   return useQuery({
     queryKey: ["job", jobId],
-    queryFn: async (): Promise<JobDetail & { is_delayed: boolean; is_pickup_ready: boolean }> => {
+    queryFn: async (): Promise<
+      JobDetail & {
+        is_delayed: boolean
+        is_urgent: boolean
+        is_pickup_ready: boolean
+      }
+    > => {
       const [jobRes, rollupRes] = await Promise.all([
         supabase
           .from("jobs")
@@ -64,7 +71,7 @@ export function useJob(jobId: string) {
           .single(),
         supabase
           .from("v_job_rollup")
-          .select("is_delayed, is_pickup_ready")
+          .select("is_delayed, is_urgent, is_pickup_ready")
           .eq("job_id", jobId)
           .maybeSingle(),
       ])
@@ -72,6 +79,7 @@ export function useJob(jobId: string) {
       return {
         ...(jobRes.data as unknown as JobDetail),
         is_delayed: rollupRes.data?.is_delayed ?? false,
+        is_urgent: rollupRes.data?.is_urgent ?? false,
         is_pickup_ready: rollupRes.data?.is_pickup_ready ?? false,
       }
     },
@@ -224,9 +232,9 @@ export function useCustomer(customerId: string) {
         supabase.from("vans").select("*").eq("customer_id", customerId).order("created_at"),
         supabase
           .from("jobs")
-          .select("id, job_number, status, planned_start_date, location_id")
+          .select("id, job_number, status, job_start_date, location_id")
           .eq("customer_id", customerId)
-          .order("planned_start_date", { ascending: false, nullsFirst: false }),
+          .order("job_start_date", { ascending: false, nullsFirst: false }),
       ])
       if (custRes.error) throw custRes.error
       if (vansRes.error) throw vansRes.error

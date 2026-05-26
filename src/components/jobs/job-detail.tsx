@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { AlertTriangle, ArrowLeft, CheckCircle2 } from "lucide-react"
+import { AlertTriangle, ArrowLeft, CheckCircle2, Clock } from "lucide-react"
 
 import { DeleteJobButton } from "@/components/jobs/delete-job-button"
 import { EditJobDialog } from "@/components/jobs/edit-job-dialog"
@@ -17,6 +17,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDate } from "@/lib/format"
 import { useJob } from "@/lib/queries"
+import { toDateString } from "@/lib/work-days"
+import { cn } from "@/lib/utils"
 
 function Field({
   label,
@@ -59,6 +61,9 @@ export function JobDetailView({ jobId }: { jobId: string }) {
   }
 
   const van = [job.vans?.make, job.vans?.model].filter(Boolean).join(" ")
+  const today = toDateString(new Date())
+  const pastFinish =
+    !!job.expected_finish_date && job.expected_finish_date < today
 
   return (
     <div className="space-y-6">
@@ -75,6 +80,12 @@ export function JobDetailView({ jobId }: { jobId: string }) {
                 {job.job_number}
               </h1>
               <StatusChanger jobId={job.id} current={job.status} />
+              <Badge variant="outline">{job.billing_type}</Badge>
+              {job.job_type ? (
+                <span className="text-sm text-muted-foreground">
+                  {job.job_type}
+                </span>
+              ) : null}
             </div>
             <p className="text-muted-foreground">
               {job.customers?.name}
@@ -88,18 +99,59 @@ export function JobDetailView({ jobId }: { jobId: string }) {
           </div>
         </div>
 
-        {job.is_delayed || job.is_pickup_ready ? (
-          <div className="mt-3 flex gap-2">
+        {job.is_delayed || job.is_urgent || job.is_pickup_ready ? (
+          <div className="mt-3 flex flex-wrap gap-2">
             {job.is_delayed ? (
               <Badge className="gap-1 bg-red-600 text-white hover:bg-red-600">
                 <AlertTriangle className="size-3.5" /> DELAYED
               </Badge>
             ) : null}
+            {job.is_urgent ? (
+              <Badge className="animate-pulse gap-1 bg-red-600 text-white hover:bg-red-600">
+                <Clock className="size-3.5" /> URGENT — customer collecting{" "}
+                {formatDate(job.customer_promised_date)}
+              </Badge>
+            ) : null}
             {job.is_pickup_ready ? (
-              <Badge className="animate-pulse gap-1 bg-green-600 text-white hover:bg-green-600">
+              <Badge className="gap-1 bg-green-600 text-white hover:bg-green-600">
                 <CheckCircle2 className="size-3.5" /> READY FOR PICKUP
               </Badge>
             ) : null}
+          </div>
+        ) : null}
+
+        {/* Key dates strip — customer-collecting is the prominent one. */}
+        <div className="mt-4 flex flex-wrap gap-x-8 gap-y-2 rounded-md border p-3 text-sm">
+          <div>
+            <span className="text-muted-foreground">Booking: </span>
+            {formatDate(job.booking_date)}
+          </div>
+          <div>
+            <span className="text-muted-foreground">Job starts: </span>
+            {formatDate(job.job_start_date)}
+          </div>
+          <div className="font-semibold">
+            <span className="font-normal text-muted-foreground">
+              Customer collecting:{" "}
+            </span>
+            {formatDate(job.customer_promised_date)}
+          </div>
+          <div className={cn(pastFinish && "font-semibold text-red-600")}>
+            <span
+              className={cn(
+                "text-muted-foreground",
+                pastFinish && "font-normal text-red-600"
+              )}
+            >
+              Expected finish:{" "}
+            </span>
+            {formatDate(job.expected_finish_date)}
+          </div>
+        </div>
+
+        {job.status === "On Hold" && job.hold_reason ? (
+          <div className="mt-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800">
+            On hold: {job.hold_reason}
           </div>
         ) : null}
       </div>
@@ -115,8 +167,8 @@ export function JobDetailView({ jobId }: { jobId: string }) {
           <Card>
             <CardContent className="space-y-6 pt-6">
               <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <Field label="Category">{job.category}</Field>
-                <Field label="Work type">{job.work_type ?? "—"}</Field>
+                <Field label="Billing type">{job.billing_type}</Field>
+                <Field label="Job type">{job.job_type ?? "—"}</Field>
                 <Field label="Priority">
                   <PriorityBadge priority={job.priority} />
                 </Field>
@@ -125,21 +177,18 @@ export function JobDetailView({ jobId }: { jobId: string }) {
                 </Field>
                 <Field label="Bay">{job.bays?.name ?? "—"}</Field>
                 <Field label="Quoted hours">{job.quoted_hours ?? "—"}</Field>
-                <Field label="Planned start">
-                  {formatDate(job.planned_start_date)}
-                </Field>
-                <Field label="Booked in">
-                  {formatDate(job.booked_in_date)}
-                </Field>
                 <Field label="Invoice status">
                   {job.invoice_status ?? "—"}
                 </Field>
-                {job.category === "Insurance" ? (
+                {job.status === "On Hold" ? (
+                  <Field label="Hold reason">{job.hold_reason ?? "—"}</Field>
+                ) : null}
+                {job.billing_type === "Insurance" ? (
                   <Field label="Insurance claim #">
                     {job.insurance_claim_number ?? "—"}
                   </Field>
                 ) : null}
-                {job.category === "Warranty" ? (
+                {job.billing_type === "Warranty" ? (
                   <Field label="Chassis number or rego">
                     {job.warranty_reference ?? "—"}
                   </Field>

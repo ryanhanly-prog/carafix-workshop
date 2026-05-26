@@ -15,6 +15,7 @@ export type JobListRow = Job & {
   vans: Pick<Van, "make" | "model" | "rego"> | null
   technicians: Pick<Technician, "name" | "colour"> | null
   is_delayed: boolean
+  is_urgent: boolean
   is_pickup_ready: boolean
 }
 

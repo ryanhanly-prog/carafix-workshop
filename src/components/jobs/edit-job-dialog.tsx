@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { parseISO } from "date-fns"
 import { Loader2, Pencil } from "lucide-react"
 import { useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
@@ -9,6 +10,7 @@ import { z } from "zod"
 import { useQueryClient } from "@tanstack/react-query"
 
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -36,28 +38,24 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { updateJob } from "@/lib/actions/jobs"
-import { JOB_CATEGORIES, PRIORITIES, WORK_TYPES } from "@/lib/job-display"
+import { BILLING_TYPES, JOB_TYPES, PRIORITIES } from "@/lib/job-display"
 import { useBays, useTechnicians } from "@/lib/queries"
 import type { JobDetail } from "@/lib/types"
+import { toDateString } from "@/lib/work-days"
 
 const NONE = "none"
 
 const schema = z.object({
-  category: z.enum(["Private", "Insurance", "Warranty", "Dealer"]),
+  billingType: z.enum(["Private", "Insurance", "Warranty", "Dealer"]),
   insuranceClaimNumber: z.string().optional(),
   warrantyReference: z.string().optional(),
   priority: z.enum(["Low", "Normal", "High", "Urgent"]),
-  workType: z.enum([
-    "Service",
-    "Repair",
-    "Pre-purchase inspection",
-    "Modification",
-    "Other",
-  ]),
+  jobType: z.enum(["Servicing", "Repairs", "Upgrades & Installation", "Other"]),
   description: z.string().optional(),
   quotedHours: z.coerce.number().min(0.5, "Minimum 0.5 hours"),
   assignedTechId: z.string(),
   bayId: z.string(),
+  customerPromisedDate: z.date().optional(),
   internalNotes: z.string().optional(),
 })
 
@@ -72,37 +70,43 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      category: job.category,
+      billingType: job.billing_type,
       insuranceClaimNumber: job.insurance_claim_number ?? "",
       warrantyReference: job.warranty_reference ?? "",
       priority: job.priority,
-      workType: job.work_type ?? "Service",
+      jobType: job.job_type ?? "Servicing",
       description: job.description ?? "",
       quotedHours: job.quoted_hours ?? 0.5,
       assignedTechId: job.assigned_tech_id ?? NONE,
       bayId: job.bay_id ?? NONE,
+      customerPromisedDate: job.customer_promised_date
+        ? parseISO(job.customer_promised_date)
+        : undefined,
       internalNotes: job.internal_notes ?? "",
     },
   })
 
-  const category = useWatch({ control: form.control, name: "category" })
+  const billingType = useWatch({ control: form.control, name: "billingType" })
 
   async function onSubmit(values: FormValues) {
     const res = await updateJob(job.id, {
-      category: values.category,
+      billing_type: values.billingType,
       priority: values.priority,
-      work_type: values.workType,
+      job_type: values.jobType,
       description: values.description?.trim() || null,
       quoted_hours: Number(values.quotedHours),
       assigned_tech_id: values.assignedTechId === NONE ? null : values.assignedTechId,
       bay_id: values.bayId === NONE ? null : values.bayId,
+      customer_promised_date: values.customerPromisedDate
+        ? toDateString(values.customerPromisedDate as Date)
+        : null,
       internal_notes: values.internalNotes?.trim() || null,
       insurance_claim_number:
-        values.category === "Insurance"
+        values.billingType === "Insurance"
           ? values.insuranceClaimNumber?.trim() || null
           : null,
       warranty_reference:
-        values.category === "Warranty"
+        values.billingType === "Warranty"
           ? values.warrantyReference?.trim() || null
           : null,
     })
@@ -127,17 +131,18 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
         <DialogHeader>
           <DialogTitle>Edit job {job.job_number}</DialogTitle>
           <DialogDescription>
-            Update job details. Promise date and status are changed separately.
+            Update job details. Expected-finish date and status are changed
+            separately.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             <FormField
               control={form.control}
-              name="category"
+              name="billingType"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category</FormLabel>
+                  <FormLabel>Billing type</FormLabel>
                   <Select value={field.value} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger>
@@ -145,9 +150,9 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {JOB_CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>
-                          {c}
+                      {BILLING_TYPES.map((bt) => (
+                        <SelectItem key={bt} value={bt}>
+                          {bt}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -157,7 +162,7 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
               )}
             />
 
-            {category === "Insurance" ? (
+            {billingType === "Insurance" ? (
               <FormField
                 control={form.control}
                 name="insuranceClaimNumber"
@@ -173,7 +178,7 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
               />
             ) : null}
 
-            {category === "Warranty" ? (
+            {billingType === "Warranty" ? (
               <FormField
                 control={form.control}
                 name="warrantyReference"
@@ -216,10 +221,10 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
               />
               <FormField
                 control={form.control}
-                name="workType"
+                name="jobType"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Work type</FormLabel>
+                    <FormLabel>Job type</FormLabel>
                     <Select value={field.value} onValueChange={field.onChange}>
                       <FormControl>
                         <SelectTrigger>
@@ -227,9 +232,9 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {WORK_TYPES.map((w) => (
-                          <SelectItem key={w} value={w}>
-                            {w}
+                        {JOB_TYPES.map((jt) => (
+                          <SelectItem key={jt} value={jt}>
+                            {jt}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -279,6 +284,24 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
               />
               <FormField
                 control={form.control}
+                name="customerPromisedDate"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Customer promised pickup date</FormLabel>
+                    <DatePicker
+                      value={field.value as Date | undefined}
+                      onChange={(d) => field.onChange(d)}
+                      placeholder="Optional"
+                    />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
                 name="assignedTechId"
                 render={({ field }) => (
                   <FormItem>
@@ -302,33 +325,32 @@ export function EditJobDialog({ job }: { job: JobDetail }) {
                   </FormItem>
                 )}
               />
+              <FormField
+                control={form.control}
+                name="bayId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Bay</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="No bay" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={NONE}>No bay</SelectItem>
+                        {bays.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-
-            <FormField
-              control={form.control}
-              name="bayId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Bay</FormLabel>
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="No bay" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value={NONE}>No bay</SelectItem>
-                      {bays.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>
-                          {b.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <FormField
               control={form.control}

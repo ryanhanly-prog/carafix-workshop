@@ -101,7 +101,7 @@ export function CustomerDetail({ customerId }: { customerId: string }) {
               <TableRow>
                 <TableHead>Job #</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Planned start</TableHead>
+                <TableHead>Job start</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -122,7 +122,7 @@ export function CustomerDetail({ customerId }: { customerId: string }) {
                     <TableCell>
                       <StatusBadge status={j.status} />
                     </TableCell>
-                    <TableCell>{formatDate(j.planned_start_date)}</TableCell>
+                    <TableCell>{formatDate(j.job_start_date)}</TableCell>
                   </TableRow>
                 ))
               )}

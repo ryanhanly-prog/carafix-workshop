@@ -51,8 +51,9 @@ export async function deletePart(partId: string): Promise<{ error?: string }> {
 }
 
 /**
- * Mark a part received. If its parent job is Waiting on Parts and no critical
- * parts remain outstanding, move the job back to In Progress.
+ * Mark a part received. If its parent job is On Hold waiting on parts and no
+ * critical parts remain outstanding, move the job back to In Progress and clear
+ * the hold reason.
  */
 export async function markPartReceived(
   partId: string
@@ -68,11 +69,11 @@ export async function markPartReceived(
 
   const { data: job } = await supabase
     .from("jobs")
-    .select("status")
+    .select("status, hold_reason")
     .eq("id", part.job_id)
     .single()
 
-  if (job?.status === "Waiting on Parts") {
+  if (job?.status === "On Hold" && job.hold_reason === "Waiting on parts") {
     const { count } = await supabase
       .from("parts")
       .select("id", { count: "exact", head: true })
@@ -82,7 +83,7 @@ export async function markPartReceived(
     if ((count ?? 0) === 0) {
       await supabase
         .from("jobs")
-        .update({ status: "In Progress" })
+        .update({ status: "In Progress", hold_reason: null })
         .eq("id", part.job_id)
     }
   }

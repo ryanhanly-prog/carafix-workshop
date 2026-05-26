@@ -289,22 +289,25 @@ export type Database = {
           actual_finish_date: string | null
           assigned_tech_id: string | null
           bay_id: string | null
-          booked_in_date: string | null
-          category: Database["public"]["Enums"]["job_category"]
+          billing_type: Database["public"]["Enums"]["billing_type"]
+          booking_date: string | null
           created_at: string | null
           customer_id: string
+          customer_promised_date: string | null
           description: string | null
           expected_finish_date: string | null
+          hold_reason: string | null
           id: string
           insurance_claim_number: string | null
           internal_notes: string | null
           invoice_status: Database["public"]["Enums"]["invoice_status"] | null
           job_number: string
+          job_start_date: string | null
+          job_type: Database["public"]["Enums"]["job_type"] | null
           location_id: string
           mechanic_desk_ref: string | null
           picked_up_date: string | null
           pickup_booked_date: string | null
-          planned_start_date: string | null
           primary_skill_id: string | null
           priority: Database["public"]["Enums"]["priority_level"]
           quoted_hours: number | null
@@ -313,28 +316,30 @@ export type Database = {
           updated_at: string | null
           van_id: string
           warranty_reference: string | null
-          work_type: Database["public"]["Enums"]["work_type"] | null
         }
         Insert: {
           actual_finish_date?: string | null
           assigned_tech_id?: string | null
           bay_id?: string | null
-          booked_in_date?: string | null
-          category?: Database["public"]["Enums"]["job_category"]
+          billing_type?: Database["public"]["Enums"]["billing_type"]
+          booking_date?: string | null
           created_at?: string | null
           customer_id: string
+          customer_promised_date?: string | null
           description?: string | null
           expected_finish_date?: string | null
+          hold_reason?: string | null
           id?: string
           insurance_claim_number?: string | null
           internal_notes?: string | null
           invoice_status?: Database["public"]["Enums"]["invoice_status"] | null
           job_number: string
+          job_start_date?: string | null
+          job_type?: Database["public"]["Enums"]["job_type"] | null
           location_id: string
           mechanic_desk_ref?: string | null
           picked_up_date?: string | null
           pickup_booked_date?: string | null
-          planned_start_date?: string | null
           primary_skill_id?: string | null
           priority?: Database["public"]["Enums"]["priority_level"]
           quoted_hours?: number | null
@@ -343,28 +348,30 @@ export type Database = {
           updated_at?: string | null
           van_id: string
           warranty_reference?: string | null
-          work_type?: Database["public"]["Enums"]["work_type"] | null
         }
         Update: {
           actual_finish_date?: string | null
           assigned_tech_id?: string | null
           bay_id?: string | null
-          booked_in_date?: string | null
-          category?: Database["public"]["Enums"]["job_category"]
+          billing_type?: Database["public"]["Enums"]["billing_type"]
+          booking_date?: string | null
           created_at?: string | null
           customer_id?: string
+          customer_promised_date?: string | null
           description?: string | null
           expected_finish_date?: string | null
+          hold_reason?: string | null
           id?: string
           insurance_claim_number?: string | null
           internal_notes?: string | null
           invoice_status?: Database["public"]["Enums"]["invoice_status"] | null
           job_number?: string
+          job_start_date?: string | null
+          job_type?: Database["public"]["Enums"]["job_type"] | null
           location_id?: string
           mechanic_desk_ref?: string | null
           picked_up_date?: string | null
           pickup_booked_date?: string | null
-          planned_start_date?: string | null
           primary_skill_id?: string | null
           priority?: Database["public"]["Enums"]["priority_level"]
           quoted_hours?: number | null
@@ -373,7 +380,6 @@ export type Database = {
           updated_at?: string | null
           van_id?: string
           warranty_reference?: string | null
-          work_type?: Database["public"]["Enums"]["work_type"] | null
         }
         Relationships: [
           {
@@ -849,11 +855,13 @@ export type Database = {
     Views: {
       v_job_rollup: {
         Row: {
+          customer_promised_date: string | null
           estimated_days: number | null
           expected_finish_date: string | null
           invoice_status: Database["public"]["Enums"]["invoice_status"] | null
           is_delayed: boolean | null
           is_pickup_ready: boolean | null
+          is_urgent: boolean | null
           job_id: string | null
           job_number: string | null
           last_scheduled_date: string | null
@@ -924,16 +932,18 @@ export type Database = {
     }
     Enums: {
       bay_type: "Drive-in Bay" | "Yard Slot" | "Offsite Storage"
+      billing_type: "Private" | "Insurance" | "Warranty" | "Dealer"
       invoice_status: "Not Invoiced" | "Draft" | "Sent" | "Complete"
-      job_category: "Private" | "Insurance" | "Warranty" | "Dealer"
       job_status:
-        | "Booked In"
-        | "Waiting to Start"
+        | "Booked"
+        | "Arrived"
         | "In Progress"
-        | "Waiting on Parts"
+        | "On Hold"
+        | "Completed"
         | "QA Check"
-        | "Ready for Pickup"
+        | "Invoiced"
         | "Picked Up"
+      job_type: "Servicing" | "Repairs" | "Upgrades & Installation" | "Other"
       part_status: "Needed" | "Ordered" | "Received" | "Fitted" | "Cancelled"
       priority_level: "Low" | "Normal" | "High" | "Urgent"
       skill_level: "learning" | "competent" | "primary"
@@ -944,12 +954,6 @@ export type Database = {
         | "QA Complete"
         | "Done"
       tech_role: "Service Tech" | "Caravan Repairer"
-      work_type:
-        | "Service"
-        | "Repair"
-        | "Pre-purchase inspection"
-        | "Modification"
-        | "Other"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1078,17 +1082,19 @@ export const Constants = {
   public: {
     Enums: {
       bay_type: ["Drive-in Bay", "Yard Slot", "Offsite Storage"],
+      billing_type: ["Private", "Insurance", "Warranty", "Dealer"],
       invoice_status: ["Not Invoiced", "Draft", "Sent", "Complete"],
-      job_category: ["Private", "Insurance", "Warranty", "Dealer"],
       job_status: [
-        "Booked In",
-        "Waiting to Start",
+        "Booked",
+        "Arrived",
         "In Progress",
-        "Waiting on Parts",
+        "On Hold",
+        "Completed",
         "QA Check",
-        "Ready for Pickup",
+        "Invoiced",
         "Picked Up",
       ],
+      job_type: ["Servicing", "Repairs", "Upgrades & Installation", "Other"],
       part_status: ["Needed", "Ordered", "Received", "Fitted", "Cancelled"],
       priority_level: ["Low", "Normal", "High", "Urgent"],
       skill_level: ["learning", "competent", "primary"],
@@ -1100,13 +1106,6 @@ export const Constants = {
         "Done",
       ],
       tech_role: ["Service Tech", "Caravan Repairer"],
-      work_type: [
-        "Service",
-        "Repair",
-        "Pre-purchase inspection",
-        "Modification",
-        "Other",
-      ],
     },
   },
 } as const
