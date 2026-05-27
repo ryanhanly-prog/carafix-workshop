@@ -308,6 +308,7 @@ export type Database = {
           job_number: string | null
           job_start_date: string | null
           job_status: string | null
+          job_type_canonical_id: string | null
           mechanics: string | null
           net_amount: number | null
           organisation_id: string
@@ -341,6 +342,7 @@ export type Database = {
           job_number?: string | null
           job_start_date?: string | null
           job_status?: string | null
+          job_type_canonical_id?: string | null
           mechanics?: string | null
           net_amount?: number | null
           organisation_id: string
@@ -374,6 +376,7 @@ export type Database = {
           job_number?: string | null
           job_start_date?: string | null
           job_status?: string | null
+          job_type_canonical_id?: string | null
           mechanics?: string | null
           net_amount?: number | null
           organisation_id?: string
@@ -395,7 +398,141 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "historical_invoices_job_type_canonical_id_fkey"
+            columns: ["job_type_canonical_id"]
+            isOneToOne: false
+            referencedRelation: "job_type_canonical"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "historical_invoices_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historical_jobs: {
+        Row: {
+          booked_by: string | null
+          comments: string | null
+          created_by: string | null
+          created_date: string | null
+          customer_external_id: string | null
+          customer_name: string | null
+          customer_number: string | null
+          description: string | null
+          estimate_hours: number | null
+          finish_time: string | null
+          finished_by: string | null
+          id: string
+          import_batch_id: string | null
+          imported_at: string | null
+          internal_notes: string | null
+          invoice_number: string | null
+          job_number: string
+          job_type_canonical_id: string | null
+          job_type_raw: string | null
+          key_tag: string | null
+          next_service_date: string | null
+          odometer: string | null
+          on_hold: boolean | null
+          on_hold_reason: string | null
+          organisation_id: string
+          pickup_time: string | null
+          registration_number: string | null
+          start_time: string | null
+          status: string | null
+          tags: string | null
+          vehicle_external_id: string | null
+          vehicle_number: string | null
+        }
+        Insert: {
+          booked_by?: string | null
+          comments?: string | null
+          created_by?: string | null
+          created_date?: string | null
+          customer_external_id?: string | null
+          customer_name?: string | null
+          customer_number?: string | null
+          description?: string | null
+          estimate_hours?: number | null
+          finish_time?: string | null
+          finished_by?: string | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          internal_notes?: string | null
+          invoice_number?: string | null
+          job_number: string
+          job_type_canonical_id?: string | null
+          job_type_raw?: string | null
+          key_tag?: string | null
+          next_service_date?: string | null
+          odometer?: string | null
+          on_hold?: boolean | null
+          on_hold_reason?: string | null
+          organisation_id: string
+          pickup_time?: string | null
+          registration_number?: string | null
+          start_time?: string | null
+          status?: string | null
+          tags?: string | null
+          vehicle_external_id?: string | null
+          vehicle_number?: string | null
+        }
+        Update: {
+          booked_by?: string | null
+          comments?: string | null
+          created_by?: string | null
+          created_date?: string | null
+          customer_external_id?: string | null
+          customer_name?: string | null
+          customer_number?: string | null
+          description?: string | null
+          estimate_hours?: number | null
+          finish_time?: string | null
+          finished_by?: string | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          internal_notes?: string | null
+          invoice_number?: string | null
+          job_number?: string
+          job_type_canonical_id?: string | null
+          job_type_raw?: string | null
+          key_tag?: string | null
+          next_service_date?: string | null
+          odometer?: string | null
+          on_hold?: boolean | null
+          on_hold_reason?: string | null
+          organisation_id?: string
+          pickup_time?: string | null
+          registration_number?: string | null
+          start_time?: string | null
+          status?: string | null
+          tags?: string | null
+          vehicle_external_id?: string | null
+          vehicle_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_jobs_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_jobs_job_type_canonical_id_fkey"
+            columns: ["job_type_canonical_id"]
+            isOneToOne: false
+            referencedRelation: "job_type_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_jobs_organisation_id_fkey"
             columns: ["organisation_id"]
             isOneToOne: false
             referencedRelation: "organisations"
@@ -558,6 +695,171 @@ export type Database = {
           },
           {
             foreignKeyName: "historical_quotes_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historical_timesheets: {
+        Row: {
+          amount_charged: number | null
+          charged_hours: number | null
+          comment: string | null
+          customer_name: string | null
+          date: string | null
+          effective_hours: number | null
+          employee: string | null
+          end_time: string | null
+          fleet_number: string | null
+          id: string
+          import_batch_id: string | null
+          imported_at: string | null
+          invoice_item_description: string | null
+          is_internal_no_charge: boolean | null
+          job_description: string | null
+          job_number: string | null
+          job_status: string | null
+          job_title: string | null
+          organisation_id: string
+          overtime: boolean | null
+          registration_number: string | null
+          start_time: string | null
+          total_hours: number | null
+        }
+        Insert: {
+          amount_charged?: number | null
+          charged_hours?: number | null
+          comment?: string | null
+          customer_name?: string | null
+          date?: string | null
+          effective_hours?: number | null
+          employee?: string | null
+          end_time?: string | null
+          fleet_number?: string | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          invoice_item_description?: string | null
+          is_internal_no_charge?: boolean | null
+          job_description?: string | null
+          job_number?: string | null
+          job_status?: string | null
+          job_title?: string | null
+          organisation_id: string
+          overtime?: boolean | null
+          registration_number?: string | null
+          start_time?: string | null
+          total_hours?: number | null
+        }
+        Update: {
+          amount_charged?: number | null
+          charged_hours?: number | null
+          comment?: string | null
+          customer_name?: string | null
+          date?: string | null
+          effective_hours?: number | null
+          employee?: string | null
+          end_time?: string | null
+          fleet_number?: string | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          invoice_item_description?: string | null
+          is_internal_no_charge?: boolean | null
+          job_description?: string | null
+          job_number?: string | null
+          job_status?: string | null
+          job_title?: string | null
+          organisation_id?: string
+          overtime?: boolean | null
+          registration_number?: string | null
+          start_time?: string | null
+          total_hours?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_timesheets_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_timesheets_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historical_vehicles: {
+        Row: {
+          chassis_number: string | null
+          customer_external_id: string | null
+          customer_name: string | null
+          external_id: string | null
+          fleet_number: string | null
+          id: string
+          import_batch_id: string | null
+          imported_at: string | null
+          make: string | null
+          model: string | null
+          notes: string | null
+          organisation_id: string
+          registration_number: string | null
+          vehicle_number: string | null
+          vin: string | null
+          year: string | null
+        }
+        Insert: {
+          chassis_number?: string | null
+          customer_external_id?: string | null
+          customer_name?: string | null
+          external_id?: string | null
+          fleet_number?: string | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          make?: string | null
+          model?: string | null
+          notes?: string | null
+          organisation_id: string
+          registration_number?: string | null
+          vehicle_number?: string | null
+          vin?: string | null
+          year?: string | null
+        }
+        Update: {
+          chassis_number?: string | null
+          customer_external_id?: string | null
+          customer_name?: string | null
+          external_id?: string | null
+          fleet_number?: string | null
+          id?: string
+          import_batch_id?: string | null
+          imported_at?: string | null
+          make?: string | null
+          model?: string | null
+          notes?: string | null
+          organisation_id?: string
+          registration_number?: string | null
+          vehicle_number?: string | null
+          vin?: string | null
+          year?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historical_vehicles_import_batch_id_fkey"
+            columns: ["import_batch_id"]
+            isOneToOne: false
+            referencedRelation: "import_batches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_vehicles_organisation_id_fkey"
             columns: ["organisation_id"]
             isOneToOne: false
             referencedRelation: "organisations"
