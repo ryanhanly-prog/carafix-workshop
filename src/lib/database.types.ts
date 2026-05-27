@@ -783,6 +783,111 @@ export type Database = {
           },
         ]
       }
+      job_type_aliases: {
+        Row: {
+          canonical_id: string | null
+          created_at: string | null
+          id: string
+          last_seen: string | null
+          occurrence_count: number | null
+          organisation_id: string
+          raw_value: string
+          suggested_canonical_id: string | null
+          suggestion_confidence: number | null
+        }
+        Insert: {
+          canonical_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_seen?: string | null
+          occurrence_count?: number | null
+          organisation_id: string
+          raw_value: string
+          suggested_canonical_id?: string | null
+          suggestion_confidence?: number | null
+        }
+        Update: {
+          canonical_id?: string | null
+          created_at?: string | null
+          id?: string
+          last_seen?: string | null
+          occurrence_count?: number | null
+          organisation_id?: string
+          raw_value?: string
+          suggested_canonical_id?: string | null
+          suggestion_confidence?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_type_aliases_canonical_id_fkey"
+            columns: ["canonical_id"]
+            isOneToOne: false
+            referencedRelation: "job_type_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_type_aliases_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_type_aliases_suggested_canonical_id_fkey"
+            columns: ["suggested_canonical_id"]
+            isOneToOne: false
+            referencedRelation: "job_type_canonical"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_type_canonical: {
+        Row: {
+          active: boolean | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          display_order: number | null
+          id: string
+          name: string
+          organisation_id: string
+          slug: string
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          name: string
+          organisation_id: string
+          slug: string
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          display_order?: number | null
+          id?: string
+          name?: string
+          organisation_id?: string
+          slug?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_type_canonical_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           actual_finish_date: string | null
@@ -1777,6 +1882,7 @@ export type Database = {
       }
     }
     Functions: {
+      canonical_job_type: { Args: { raw_text: string }; Returns: string }
       current_user_org_id: { Args: never; Returns: string }
       is_controller: { Args: never; Returns: boolean }
     }
