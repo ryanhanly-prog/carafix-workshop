@@ -129,17 +129,23 @@ export function SimilarQuotesPanel({
     queryKey: ["similar", quote.id],
     queryFn: async () => {
       const looseRpc = supabase as unknown as SupabaseClient
-      const { data } = await looseRpc.rpc("find_similar_quotes", {
+      // Self-exclusion happens in SQL via p_exclude_quote_id. No score threshold:
+      // every row the function returns is displayed — James judges quality from the
+      // score + match-reason badges.
+      const { data, error } = await looseRpc.rpc("find_similar_quotes", {
         p_organisation_id: quote.organisation_id,
         p_canonical_job_type_id: quote.canonical_job_type_id,
         p_vehicle_make: quote.vans?.make ?? null,
         p_vehicle_model: quote.vans?.model ?? null,
         p_description: quote.description ?? null,
         p_damage_tags: quote.damage_tags ?? null,
+        p_exclude_quote_id: quote.id,
       })
-      return ((data as unknown as Similar[]) ?? []).filter(
-        (r) => !(r.source === "live" && r.id === quote.id)
-      )
+      if (error) {
+        toast.error("Could not load similar quotes", { description: error.message })
+        throw error
+      }
+      return (data as unknown as Similar[]) ?? []
     },
   })
 

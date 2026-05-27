@@ -1259,6 +1259,7 @@ export type Database = {
           active: boolean | null
           category: string | null
           created_at: string | null
+          default_damage_tags: string[] | null
           description: string | null
           display_order: number | null
           id: string
@@ -1271,6 +1272,7 @@ export type Database = {
           active?: boolean | null
           category?: string | null
           created_at?: string | null
+          default_damage_tags?: string[] | null
           description?: string | null
           display_order?: number | null
           id?: string
@@ -1283,6 +1285,7 @@ export type Database = {
           active?: boolean | null
           category?: string | null
           created_at?: string | null
+          default_damage_tags?: string[] | null
           description?: string | null
           display_order?: number | null
           id?: string
@@ -2654,6 +2657,7 @@ export type Database = {
           p_canonical_job_type_id: string
           p_damage_tags: string[]
           p_description: string
+          p_exclude_quote_id?: string
           p_organisation_id: string
           p_vehicle_make: string
           p_vehicle_model: string
@@ -2689,6 +2693,10 @@ export type Database = {
           p_unit_cost: number
         }
         Returns: string
+      }
+      suggest_damage_tags: {
+        Args: { p_org: string; p_text: string }
+        Returns: string[]
       }
       text_jaccard: { Args: { a: string; b: string }; Returns: number }
       tokenize_for_similarity: {
