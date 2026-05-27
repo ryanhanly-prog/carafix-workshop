@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import { Loader2, X } from "lucide-react"
+import type { SupabaseClient } from "@supabase/supabase-js"
+import { Loader2, Plus, X } from "lucide-react"
 import { toast } from "sonner"
 
 import { CustomerCombobox, type SelectedCustomer } from "@/components/jobs/customer-combobox"
@@ -10,6 +11,16 @@ import { VanCombobox, type SelectedVan } from "@/components/jobs/van-combobox"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -29,18 +40,31 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { createInsurer } from "@/lib/actions/insurers"
 import { createQuote } from "@/lib/actions/quotes"
+import { getBrowserClient } from "@/lib/supabase/browser"
 
-export type JobTypeOption = { id: string; name: string; labour_rate_source: string | null }
+export type JobTypeOption = {
+  id: string
+  name: string
+  labour_rate_source: string | null
+  default_damage_tags: string[]
+}
 type Insurer = { id: string; name: string; capped_labour_rate: number }
+
+function sameSet(a: string[], b: string[]) {
+  return a.length === b.length && a.every((x) => b.includes(x))
+}
 
 export function NewQuoteForm({
   jobTypes,
   insurers: initialInsurers,
+  organisationId,
 }: {
   jobTypes: JobTypeOption[]
   insurers: Insurer[]
+  organisationId: string
 }) {
   const router = useRouter()
+  const supabase = getBrowserClient()
   const [customer, setCustomer] = React.useState<SelectedCustomer | null>(null)
   const [van, setVan] = React.useState<SelectedVan | null>(null)
   const [jobTypeId, setJobTypeId] = React.useState<string>("")
@@ -51,6 +75,11 @@ export function NewQuoteForm({
   const [tagDraft, setTagDraft] = React.useState("")
   const [pending, startTransition] = React.useTransition()
 
+  // damage-tag auto-suggest state
+  const [dismissed, setDismissed] = React.useState<Set<string>>(new Set())
+  const [descSuggestions, setDescSuggestions] = React.useState<string[]>([])
+  const [confirmTags, setConfirmTags] = React.useState<string[] | null>(null) // pending job-type defaults awaiting confirm
+
   // insurer create dialog
   const [insurerDialog, setInsurerDialog] = React.useState(false)
   const [newInsurerName, setNewInsurerName] = React.useState("")
@@ -60,11 +89,67 @@ export function NewQuoteForm({
   const selectedType = jobTypes.find((t) => t.id === jobTypeId)
   const needsInsurer = selectedType?.labour_rate_source === "insurer_capped"
 
+  function addTagValue(t: string) {
+    if (!t) return
+    setTags((prev) => (prev.includes(t) ? prev : [...prev, t]))
+    setDismissed((prev) => {
+      if (!prev.has(t)) return prev
+      const next = new Set(prev)
+      next.delete(t)
+      return next
+    })
+  }
+
+  function removeTag(t: string) {
+    setTags((prev) => prev.filter((x) => x !== t))
+    setDismissed((prev) => new Set(prev).add(t)) // don't auto-re-add a tag the user removed
+  }
+
   function addTag() {
-    const t = tagDraft.trim().replace(/,$/, "")
-    if (t && !tags.includes(t)) setTags((prev) => [...prev, t])
+    addTagValue(tagDraft.trim().replace(/,$/, ""))
     setTagDraft("")
   }
+
+  // Layer 1 — job-type default tags. Prefill on pick; confirm before overwriting
+  // existing tags when switching to a type with different defaults.
+  function onJobTypeChange(id: string) {
+    setJobTypeId(id)
+    const defaults = jobTypes.find((t) => t.id === id)?.default_damage_tags ?? []
+    if (tags.length === 0) {
+      setTags(defaults)
+      setDismissed(new Set())
+    } else if (!sameSet(tags, defaults) && defaults.length > 0) {
+      setConfirmTags(defaults)
+    }
+  }
+
+  // Layer 2 — description-driven suggestions (debounced). Same tokeniser + canonical
+  // keyword list as the corpus backfill (single source of truth via rpc).
+  React.useEffect(() => {
+    const text = description.trim()
+    if (text.length < 4) {
+      setDescSuggestions([])
+      return
+    }
+    const handle = setTimeout(async () => {
+      const looseRpc = supabase as unknown as SupabaseClient
+      const { data, error } = await looseRpc.rpc("suggest_damage_tags", {
+        p_text: text,
+        p_org: organisationId,
+      })
+      if (error) return
+      const suggestions = (data as string[] | null) ?? []
+      setDescSuggestions(suggestions)
+      // Pre-select: auto-add any new suggestion the user hasn't already removed.
+      setTags((prev) => {
+        const next = [...prev]
+        for (const s of suggestions) if (!next.includes(s) && !dismissed.has(s)) next.push(s)
+        return next
+      })
+    }, 400)
+    return () => clearTimeout(handle)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [description])
 
   function saveInsurer() {
     const rate = Number(newInsurerRate)
@@ -141,7 +226,7 @@ export function NewQuoteForm({
 
           <div className="space-y-1">
             <Label>Job type</Label>
-            <Select value={jobTypeId} onValueChange={setJobTypeId}>
+            <Select value={jobTypeId} onValueChange={onJobTypeChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Select job type…" />
               </SelectTrigger>
@@ -194,7 +279,7 @@ export function NewQuoteForm({
               {tags.map((t) => (
                 <Badge key={t} variant="secondary" className="gap-1">
                   {t}
-                  <button type="button" onClick={() => setTags((prev) => prev.filter((x) => x !== t))}>
+                  <button type="button" onClick={() => removeTag(t)} aria-label={`Remove ${t}`}>
                     <X className="size-3" />
                   </button>
                 </Badge>
@@ -213,6 +298,24 @@ export function NewQuoteForm({
                 onBlur={addTag}
               />
             </div>
+            {descSuggestions.filter((s) => !tags.includes(s)).length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-xs text-muted-foreground">Suggested from description:</span>
+                {descSuggestions
+                  .filter((s) => !tags.includes(s))
+                  .map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => addTagValue(s)}
+                      className="inline-flex items-center gap-1 rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[11px] font-medium text-blue-800 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950 dark:text-blue-200"
+                    >
+                      <Plus className="size-3" />
+                      {s}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-2">
@@ -255,6 +358,36 @@ export function NewQuoteForm({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={confirmTags !== null}
+        onOpenChange={(o) => {
+          if (!o) setConfirmTags(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Replace damage tags with defaults for the new job type?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Your current damage tags will be replaced with the defaults for this job type.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setConfirmTags(null)}>Keep mine</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmTags) {
+                  setTags(confirmTags)
+                  setDismissed(new Set())
+                }
+                setConfirmTags(null)
+              }}
+            >
+              Replace
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
