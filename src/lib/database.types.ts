@@ -2467,36 +2467,60 @@ export type Database = {
       }
       vans: {
         Row: {
+          chassis_number: string | null
           created_at: string | null
           customer_id: string | null
+          external_id: string | null
+          fleet_number: string | null
           id: string
+          imported_at: string | null
+          imported_from: string | null
           make: string | null
+          manually_edited: boolean | null
           model: string | null
           notes: string | null
           organisation_id: string
           rego: string | null
+          vehicle_number: string | null
+          vin: string | null
           year: number | null
         }
         Insert: {
+          chassis_number?: string | null
           created_at?: string | null
           customer_id?: string | null
+          external_id?: string | null
+          fleet_number?: string | null
           id?: string
+          imported_at?: string | null
+          imported_from?: string | null
           make?: string | null
+          manually_edited?: boolean | null
           model?: string | null
           notes?: string | null
           organisation_id: string
           rego?: string | null
+          vehicle_number?: string | null
+          vin?: string | null
           year?: number | null
         }
         Update: {
+          chassis_number?: string | null
           created_at?: string | null
           customer_id?: string | null
+          external_id?: string | null
+          fleet_number?: string | null
           id?: string
+          imported_at?: string | null
+          imported_from?: string | null
           make?: string | null
+          manually_edited?: boolean | null
           model?: string | null
           notes?: string | null
           organisation_id?: string
           rego?: string | null
+          vehicle_number?: string | null
+          vin?: string | null
           year?: number | null
         }
         Relationships: [
@@ -2698,6 +2722,7 @@ export type Database = {
         Args: { p_org: string; p_text: string }
         Returns: string[]
       }
+      sync_imported_vans: { Args: { p_org: string }; Returns: number }
       text_jaccard: { Args: { a: string; b: string }; Returns: number }
       tokenize_for_similarity: {
         Args: { p_org_id: string; p_text: string }
