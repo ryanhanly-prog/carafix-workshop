@@ -37,8 +37,9 @@ yarn-error.log*
 # vercel
 .vercel
 
-# Mechanic Desk sample imports — contain real customer PII, never commit
+# Mechanic Desk imports — contain real customer PII, never commit
 /sample-imports/
+/full-historical-import/
 
 # typescript
 *.tsbuildinfo
