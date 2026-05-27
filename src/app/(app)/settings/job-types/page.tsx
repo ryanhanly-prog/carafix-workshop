@@ -19,7 +19,10 @@ export default async function JobTypesPage() {
       .from("job_type_aliases")
       .select(
         "id, raw_value, canonical_id, occurrence_count, last_seen, suggested_canonical_id, suggestion_confidence"
-      ),
+      )
+      // Most-impactful first, so the top unmapped rows are the ones the user sees
+      // (and the ones retained first under any PostgREST row cap).
+      .order("occurrence_count", { ascending: false, nullsFirst: false }),
     supabase
       .from("job_type_defaults")
       .select(

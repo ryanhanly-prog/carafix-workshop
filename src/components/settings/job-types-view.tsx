@@ -250,6 +250,7 @@ function AliasesTab({
   onChanged: () => void
 }) {
   const [pending, startTransition] = React.useTransition()
+  const [visibleCount, setVisibleCount] = React.useState(50)
   const nameById = React.useMemo(
     () => new Map(types.map((t) => [t.id, t.name])),
     [types]
@@ -260,6 +261,9 @@ function AliasesTab({
     .filter((a) => !a.canonical_id)
     .sort((a, b) => (b.occurrence_count ?? 0) - (a.occurrence_count ?? 0))
   const mapped = aliases.filter((a) => a.canonical_id)
+  // Render in chunks — the unmapped list can be thousands of rows, and one heavy
+  // Select per row would lock up the page if they all mounted at once.
+  const visibleUnmapped = unmapped.slice(0, visibleCount)
 
   const totalOccurrences = aliases.reduce((n, a) => n + (a.occurrence_count ?? 0), 0)
   const unmappedOccurrences = unmapped.reduce((n, a) => n + (a.occurrence_count ?? 0), 0)
@@ -348,47 +352,78 @@ function AliasesTab({
                         </TableCell>
                       </TableRow>
                     ) : (
-                      unmapped.map((a) => (
-                        <TableRow key={a.id}>
-                          <TableCell>
-                            <div className="font-medium">{a.raw_value}</div>
-                            {a.suggested_canonical_id ? (
-                              <div className="text-xs text-muted-foreground">
-                                Suggested: {nameById.get(a.suggested_canonical_id) ?? "?"}
-                                {a.suggestion_confidence != null
-                                  ? ` (${Math.round(a.suggestion_confidence * 100)}%)`
-                                  : ""}
-                              </div>
-                            ) : null}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {a.occurrence_count ?? 0}
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              disabled={pending}
-                              value={a.suggested_canonical_id ?? undefined}
-                              onValueChange={(v) =>
-                                run(() => mapAlias(a.id, v), `Mapped "${a.raw_value}"`)
-                              }
-                            >
-                              <SelectTrigger className="w-[180px]">
-                                <SelectValue placeholder="Pick type…" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {activeTypes.map((t) => (
-                                  <SelectItem key={t.id} value={t.id}>
-                                    {t.name}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                      visibleUnmapped.map((a) => {
+                        const sid = a.suggested_canonical_id
+                        return (
+                          <TableRow key={a.id}>
+                            <TableCell>
+                              <div className="font-medium">{a.raw_value}</div>
+                              {sid ? (
+                                <div className="mt-1 flex flex-wrap items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">
+                                    Suggested: {nameById.get(sid) ?? "?"}
+                                    {a.suggestion_confidence != null
+                                      ? ` · ${Math.round(a.suggestion_confidence * 100)}%`
+                                      : ""}
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    className="h-6 px-2 text-xs"
+                                    disabled={pending}
+                                    onClick={() =>
+                                      run(() => mapAlias(a.id, sid), `Mapped "${a.raw_value}"`)
+                                    }
+                                  >
+                                    Accept
+                                  </Button>
+                                </div>
+                              ) : null}
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">
+                              {a.occurrence_count ?? 0}
+                            </TableCell>
+                            <TableCell>
+                              <Select
+                                disabled={pending}
+                                value={undefined}
+                                onValueChange={(v) =>
+                                  run(() => mapAlias(a.id, v), `Mapped "${a.raw_value}"`)
+                                }
+                              >
+                                <SelectTrigger className="w-[180px]">
+                                  <SelectValue placeholder={sid ? "Override…" : "Pick type…"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {activeTypes.map((t) => (
+                                    <SelectItem key={t.id} value={t.id}>
+                                      {t.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
                     )}
                   </TableBody>
                 </Table>
+                {unmapped.length > visibleCount ? (
+                  <div className="flex items-center justify-between border-t px-4 py-2 text-xs text-muted-foreground">
+                    <span>
+                      Showing {visibleUnmapped.length} of {unmapped.length}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      disabled={pending}
+                      onClick={() => setVisibleCount((n) => n + 50)}
+                    >
+                      Show 50 more
+                    </Button>
+                  </div>
+                ) : null}
               </CardContent>
             </Card>
 
