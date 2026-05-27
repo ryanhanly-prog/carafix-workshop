@@ -3,9 +3,8 @@
 import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import type { SupabaseClient } from "@supabase/supabase-js"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowDown, ArrowUp, Copy, Loader2, Plus, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, Loader2, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -30,9 +29,9 @@ import {
 } from "@/components/ui/table"
 import { formatDate } from "@/lib/format"
 import { getBrowserClient } from "@/lib/supabase/browser"
+import { SimilarQuotesPanel } from "@/components/quotes/similar-quotes-panel"
 import {
   addLineItem,
-  cloneIntoQuote,
   deleteLineItem,
   moveLineItem,
   setQuoteStatus,
@@ -539,87 +538,3 @@ function AddLineItem({
   )
 }
 
-// ----------------------------- similar quotes -----------------------------
-type Similar = {
-  id: string
-  source: "live" | "historical"
-  score: number
-  vehicle: string | null
-  description: string | null
-  line_count: number
-  total: number | null
-}
-
-function SimilarQuotesPanel({ quote, onCloned }: { quote: QuoteHeader; onCloned: () => void }) {
-  const supabase = getBrowserClient()
-  const [cloning, startTransition] = React.useTransition()
-
-  const { data: similar = [], isLoading } = useQuery({
-    queryKey: ["similar", quote.id],
-    queryFn: async () => {
-      // Loose client: rpc arg types mark the optional text/array params as
-      // non-null, but the function accepts nulls.
-      const looseRpc = supabase as unknown as SupabaseClient
-      const { data } = await looseRpc.rpc("find_similar_quotes", {
-        p_organisation_id: quote.organisation_id,
-        p_canonical_job_type_id: quote.canonical_job_type_id,
-        p_vehicle_make: quote.vans?.make ?? null,
-        p_vehicle_model: quote.vans?.model ?? null,
-        p_description: quote.description ?? null,
-        p_damage_tags: quote.damage_tags ?? null,
-      })
-      return ((data as unknown as Similar[]) ?? []).filter(
-        (r) => !(r.source === "live" && r.id === quote.id)
-      )
-    },
-  })
-
-  function clone(s: Similar) {
-    startTransition(async () => {
-      const res = await cloneIntoQuote(quote.id, s.id, s.source)
-      if (res.error) {
-        toast.error("Clone failed", { description: res.error })
-        return
-      }
-      toast.success(`Cloned ${res.count} line(s)`)
-      onCloned()
-    })
-  }
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Find similar past quotes</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">Searching…</p>
-        ) : similar.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No similar quotes found.</p>
-        ) : (
-          similar.map((s) => (
-            <div key={`${s.source}-${s.id}`} className="rounded-md border p-2 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{s.vehicle || "Unknown vehicle"}</span>
-                <Badge variant="outline" className="text-[10px]">
-                  {s.source} · score {Math.round(s.score)}
-                </Badge>
-              </div>
-              {s.description && (
-                <p className="line-clamp-2 text-xs text-muted-foreground">{s.description}</p>
-              )}
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  {s.line_count} lines · {money(s.total)}
-                </span>
-                <Button size="sm" variant="secondary" disabled={cloning} onClick={() => clone(s)}>
-                  <Copy className="size-3.5" /> Clone all lines
-                </Button>
-              </div>
-            </div>
-          ))
-        )}
-      </CardContent>
-    </Card>
-  )
-}
