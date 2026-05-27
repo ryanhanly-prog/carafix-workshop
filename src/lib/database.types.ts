@@ -666,6 +666,7 @@ export type Database = {
       historical_quotes: {
         Row: {
           assessed_by: string | null
+          combined_search_text: string | null
           comments: string | null
           customer_email: string | null
           customer_external_id: string | null
@@ -677,19 +678,23 @@ export type Database = {
           id: string
           import_batch_id: string | null
           imported_at: string | null
+          inferred_damage_tags: string[] | null
           issue_date: string | null
           net_amount: number | null
           organisation_id: string
           quote_number: string
           resolved_canonical_job_type_id: string | null
+          search_tokens: string[] | null
           status: string | null
           total_amount: number | null
+          total_labour_hours: number | null
           vehicle_make: string | null
           vehicle_model: string | null
           vehicle_year: string | null
         }
         Insert: {
           assessed_by?: string | null
+          combined_search_text?: string | null
           comments?: string | null
           customer_email?: string | null
           customer_external_id?: string | null
@@ -701,19 +706,23 @@ export type Database = {
           id?: string
           import_batch_id?: string | null
           imported_at?: string | null
+          inferred_damage_tags?: string[] | null
           issue_date?: string | null
           net_amount?: number | null
           organisation_id: string
           quote_number: string
           resolved_canonical_job_type_id?: string | null
+          search_tokens?: string[] | null
           status?: string | null
           total_amount?: number | null
+          total_labour_hours?: number | null
           vehicle_make?: string | null
           vehicle_model?: string | null
           vehicle_year?: string | null
         }
         Update: {
           assessed_by?: string | null
+          combined_search_text?: string | null
           comments?: string | null
           customer_email?: string | null
           customer_external_id?: string | null
@@ -725,13 +734,16 @@ export type Database = {
           id?: string
           import_batch_id?: string | null
           imported_at?: string | null
+          inferred_damage_tags?: string[] | null
           issue_date?: string | null
           net_amount?: number | null
           organisation_id?: string
           quote_number?: string
           resolved_canonical_job_type_id?: string | null
+          search_tokens?: string[] | null
           status?: string | null
           total_amount?: number | null
+          total_labour_hours?: number | null
           vehicle_make?: string | null
           vehicle_model?: string | null
           vehicle_year?: string | null
@@ -2421,6 +2433,35 @@ export type Database = {
           },
         ]
       }
+      text_boilerplate_phrases: {
+        Row: {
+          created_at: string | null
+          id: string
+          organisation_id: string
+          phrase: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          organisation_id: string
+          phrase: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          organisation_id?: string
+          phrase?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "text_boilerplate_phrases_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vans: {
         Row: {
           created_at: string | null
@@ -2583,6 +2624,16 @@ export type Database = {
       }
     }
     Functions: {
+      backfill_combined_search_text: {
+        Args: { p_org: string }
+        Returns: number
+      }
+      backfill_inferred_damage_tags: {
+        Args: { p_org: string }
+        Returns: number
+      }
+      backfill_resolved_canonical: { Args: { p_org: string }; Returns: number }
+      backfill_total_labour_hours: { Args: { p_org: string }; Returns: number }
       canonical_job_type: { Args: { raw_text: string }; Returns: string }
       clone_quote: {
         Args: {
@@ -2591,6 +2642,10 @@ export type Database = {
           p_target_quote_id: string
         }
         Returns: number
+      }
+      compute_combined_search_text: {
+        Args: { p_quote_id: string }
+        Returns: string
       }
       compute_labour_rate: { Args: { p_quote_id: string }; Returns: number }
       current_user_org_id: { Args: never; Returns: string }
@@ -2604,17 +2659,23 @@ export type Database = {
           p_vehicle_model: string
         }
         Returns: {
-          created_at: string
-          description: string
           id: string
+          issue_date: string
+          labour_total: number
           line_count: number
+          match_reasons: string[]
+          parts_total: number
+          preview_text: string
           score: number
           source: string
           total: number
+          total_labour_hours: number
           vehicle: string
         }[]
       }
+      infer_damage_tags: { Args: { p_tokens: string[] }; Returns: string[] }
       is_controller: { Args: never; Returns: boolean }
+      jaccard_arr: { Args: { a: string[]; b: string[] }; Returns: number }
       recompute_quote_totals: {
         Args: { p_quote_id: string }
         Returns: undefined
@@ -2630,6 +2691,10 @@ export type Database = {
         Returns: string
       }
       text_jaccard: { Args: { a: string; b: string }; Returns: number }
+      tokenize_for_similarity: {
+        Args: { p_org_id: string; p_text: string }
+        Returns: string[]
+      }
     }
     Enums: {
       bay_type: "Drive-in Bay" | "Yard Slot" | "Offsite Storage"
