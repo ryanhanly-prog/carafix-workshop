@@ -155,6 +155,54 @@ export type Database = {
           },
         ]
       }
+      config_audit_log: {
+        Row: {
+          action: string
+          changed_at: string | null
+          changed_by: string | null
+          changed_fields: Json | null
+          entity_id: string
+          entity_type: string
+          id: string
+          organisation_id: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string | null
+          changed_by?: string | null
+          changed_fields?: Json | null
+          entity_id: string
+          entity_type: string
+          id?: string
+          organisation_id: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string | null
+          changed_by?: string | null
+          changed_fields?: Json | null
+          entity_id?: string
+          entity_type?: string
+          id?: string
+          organisation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_audit_log_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "config_audit_log_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       customers: {
         Row: {
           created_at: string | null
@@ -633,6 +681,7 @@ export type Database = {
           net_amount: number | null
           organisation_id: string
           quote_number: string
+          resolved_canonical_job_type_id: string | null
           status: string | null
           total_amount: number | null
           vehicle_make: string | null
@@ -656,6 +705,7 @@ export type Database = {
           net_amount?: number | null
           organisation_id: string
           quote_number: string
+          resolved_canonical_job_type_id?: string | null
           status?: string | null
           total_amount?: number | null
           vehicle_make?: string | null
@@ -679,6 +729,7 @@ export type Database = {
           net_amount?: number | null
           organisation_id?: string
           quote_number?: string
+          resolved_canonical_job_type_id?: string | null
           status?: string | null
           total_amount?: number | null
           vehicle_make?: string | null
@@ -698,6 +749,13 @@ export type Database = {
             columns: ["organisation_id"]
             isOneToOne: false
             referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historical_quotes_resolved_canonical_job_type_id_fkey"
+            columns: ["resolved_canonical_job_type_id"]
+            isOneToOne: false
+            referencedRelation: "job_type_canonical"
             referencedColumns: ["id"]
           },
         ]
@@ -962,6 +1020,47 @@ export type Database = {
           },
         ]
       }
+      insurers: {
+        Row: {
+          capped_labour_rate: number
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          notes: string | null
+          organisation_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          capped_labour_rate: number
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          notes?: string | null
+          organisation_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          capped_labour_rate?: number
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          notes?: string | null
+          organisation_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "insurers_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_attachments: {
         Row: {
           caption: string | null
@@ -1183,6 +1282,60 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "job_type_canonical_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_type_defaults: {
+        Row: {
+          canonical_job_type_id: string
+          created_at: string | null
+          id: string
+          labour_rate_source: string
+          markup_default_pct: number | null
+          markup_floor_pct: number | null
+          notes: string | null
+          organisation_id: string
+          updated_at: string | null
+          workshop_retail_rate: number | null
+        }
+        Insert: {
+          canonical_job_type_id: string
+          created_at?: string | null
+          id?: string
+          labour_rate_source: string
+          markup_default_pct?: number | null
+          markup_floor_pct?: number | null
+          notes?: string | null
+          organisation_id: string
+          updated_at?: string | null
+          workshop_retail_rate?: number | null
+        }
+        Update: {
+          canonical_job_type_id?: string
+          created_at?: string | null
+          id?: string
+          labour_rate_source?: string
+          markup_default_pct?: number | null
+          markup_floor_pct?: number | null
+          notes?: string | null
+          organisation_id?: string
+          updated_at?: string | null
+          workshop_retail_rate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_type_defaults_canonical_job_type_id_fkey"
+            columns: ["canonical_job_type_id"]
+            isOneToOne: false
+            referencedRelation: "job_type_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_type_defaults_organisation_id_fkey"
             columns: ["organisation_id"]
             isOneToOne: false
             referencedRelation: "organisations"
@@ -1580,6 +1733,249 @@ export type Database = {
           },
         ]
       }
+      quote_line_items: {
+        Row: {
+          created_at: string | null
+          description: string
+          id: string
+          line_order: number
+          line_total: number | null
+          line_type: string
+          markup_pct: number | null
+          notes: string | null
+          organisation_id: string
+          part_id: string | null
+          quantity: number | null
+          quote_id: string
+          source: string
+          source_quote_line_id: string | null
+          supplier_id: string | null
+          unit: string | null
+          unit_cost: number | null
+          unit_price: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          description: string
+          id?: string
+          line_order: number
+          line_total?: number | null
+          line_type: string
+          markup_pct?: number | null
+          notes?: string | null
+          organisation_id: string
+          part_id?: string | null
+          quantity?: number | null
+          quote_id: string
+          source?: string
+          source_quote_line_id?: string | null
+          supplier_id?: string | null
+          unit?: string | null
+          unit_cost?: number | null
+          unit_price?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          description?: string
+          id?: string
+          line_order?: number
+          line_total?: number | null
+          line_type?: string
+          markup_pct?: number | null
+          notes?: string | null
+          organisation_id?: string
+          part_id?: string | null
+          quantity?: number | null
+          quote_id?: string
+          source?: string
+          source_quote_line_id?: string | null
+          supplier_id?: string | null
+          unit?: string | null
+          unit_cost?: number | null
+          unit_price?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_line_items_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_part_id_fkey"
+            columns: ["part_id"]
+            isOneToOne: false
+            referencedRelation: "stock_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "v_supplier_rollup"
+            referencedColumns: ["supplier_id"]
+          },
+        ]
+      }
+      quote_sequences: {
+        Row: {
+          last_number: number
+          organisation_id: string
+        }
+        Insert: {
+          last_number?: number
+          organisation_id: string
+        }
+        Update: {
+          last_number?: number
+          organisation_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_sequences_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: true
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          canonical_job_type_id: string
+          cloned_from_quote_id: string | null
+          cloned_from_source: string | null
+          created_at: string | null
+          created_by: string | null
+          customer_id: string | null
+          damage_tags: string[] | null
+          description: string | null
+          id: string
+          insurer_id: string | null
+          notes: string | null
+          organisation_id: string
+          quote_number: string | null
+          sent_at: string | null
+          status: string
+          subtotal_consumables: number | null
+          subtotal_labour: number | null
+          subtotal_other: number | null
+          subtotal_parts: number | null
+          total: number | null
+          updated_at: string | null
+          vehicle_id: string | null
+        }
+        Insert: {
+          canonical_job_type_id: string
+          cloned_from_quote_id?: string | null
+          cloned_from_source?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          damage_tags?: string[] | null
+          description?: string | null
+          id?: string
+          insurer_id?: string | null
+          notes?: string | null
+          organisation_id: string
+          quote_number?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal_consumables?: number | null
+          subtotal_labour?: number | null
+          subtotal_other?: number | null
+          subtotal_parts?: number | null
+          total?: number | null
+          updated_at?: string | null
+          vehicle_id?: string | null
+        }
+        Update: {
+          canonical_job_type_id?: string
+          cloned_from_quote_id?: string | null
+          cloned_from_source?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          customer_id?: string | null
+          damage_tags?: string[] | null
+          description?: string | null
+          id?: string
+          insurer_id?: string | null
+          notes?: string | null
+          organisation_id?: string
+          quote_number?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal_consumables?: number | null
+          subtotal_labour?: number | null
+          subtotal_other?: number | null
+          subtotal_parts?: number | null
+          total?: number | null
+          updated_at?: string | null
+          vehicle_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_canonical_job_type_id_fkey"
+            columns: ["canonical_job_type_id"]
+            isOneToOne: false
+            referencedRelation: "job_type_canonical"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_insurer_id_fkey"
+            columns: ["insurer_id"]
+            isOneToOne: false
+            referencedRelation: "insurers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       skills: {
         Row: {
           description: string | null
@@ -1644,6 +2040,7 @@ export type Database = {
       stock_items: {
         Row: {
           allocated: number | null
+          auto_created: boolean | null
           available: number | null
           bin_location: string | null
           brand: string | null
@@ -1672,6 +2069,7 @@ export type Database = {
         }
         Insert: {
           allocated?: number | null
+          auto_created?: boolean | null
           available?: number | null
           bin_location?: string | null
           brand?: string | null
@@ -1700,6 +2098,7 @@ export type Database = {
         }
         Update: {
           allocated?: number | null
+          auto_created?: boolean | null
           available?: number | null
           bin_location?: string | null
           brand?: string | null
@@ -2185,8 +2584,52 @@ export type Database = {
     }
     Functions: {
       canonical_job_type: { Args: { raw_text: string }; Returns: string }
+      clone_quote: {
+        Args: {
+          p_source_quote_id: string
+          p_source_type: string
+          p_target_quote_id: string
+        }
+        Returns: number
+      }
+      compute_labour_rate: { Args: { p_quote_id: string }; Returns: number }
       current_user_org_id: { Args: never; Returns: string }
+      find_similar_quotes: {
+        Args: {
+          p_canonical_job_type_id: string
+          p_damage_tags: string[]
+          p_description: string
+          p_organisation_id: string
+          p_vehicle_make: string
+          p_vehicle_model: string
+        }
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          line_count: number
+          score: number
+          source: string
+          total: number
+          vehicle: string
+        }[]
+      }
       is_controller: { Args: never; Returns: boolean }
+      recompute_quote_totals: {
+        Args: { p_quote_id: string }
+        Returns: undefined
+      }
+      silent_save_part: {
+        Args: {
+          p_description: string
+          p_organisation_id: string
+          p_sku: string
+          p_supplier_id: string
+          p_unit_cost: number
+        }
+        Returns: string
+      }
+      text_jaccard: { Args: { a: string; b: string }; Returns: number }
     }
     Enums: {
       bay_type: "Drive-in Bay" | "Yard Slot" | "Offsite Storage"
