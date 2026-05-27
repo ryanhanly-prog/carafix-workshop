@@ -93,6 +93,23 @@ function vanLabel(v: QuoteHeader["vans"]) {
   return [v.make, v.model].filter(Boolean).join(" ") + (v.rego ? ` · ${v.rego}` : "")
 }
 
+// Display-only unit fallback by line type (never written to the DB).
+function defaultUnit(lineType: LineType): string {
+  if (lineType === "labour") return "hr"
+  if (lineType === "part" || lineType === "consumable" || lineType === "freight") return "each"
+  return ""
+}
+
+// A cloned section header surfaces as an 'other' line with everything zeroed.
+function isSectionDivider(l: LineItem): boolean {
+  return (
+    l.line_type === "other" &&
+    (l.quantity ?? 0) === 0 &&
+    (l.unit_cost ?? 0) === 0 &&
+    (l.line_total ?? 0) === 0
+  )
+}
+
 // ----------------------------- editable row -----------------------------
 function LineRow({
   line,
@@ -125,6 +142,49 @@ function LineRow({
     })
   }
 
+  // Section divider: full-width heading, editable label, no numeric cells.
+  if (isSectionDivider(line)) {
+    return (
+      <TableRow className="bg-muted/60">
+        <TableCell className="text-muted-foreground">{line.line_order}</TableCell>
+        <TableCell colSpan={8}>
+          {readOnly ? (
+            <span className="text-sm font-semibold uppercase tracking-wide">
+              {line.description}
+            </span>
+          ) : (
+            <Input
+              className="h-8 border-0 bg-transparent text-sm font-semibold uppercase tracking-wide shadow-none focus-visible:ring-1"
+              value={draft.description}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              onBlur={() =>
+                draft.description !== line.description && save({ description: draft.description })
+              }
+            />
+          )}
+        </TableCell>
+        {!readOnly && (
+          <TableCell>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-red-600"
+              aria-label="Delete section"
+              onClick={() =>
+                startTransition(async () => {
+                  await deleteLineItem(line.id, lineQuoteId)
+                  onChanged()
+                })
+              }
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          </TableCell>
+        )}
+      </TableRow>
+    )
+  }
+
   if (readOnly) {
     return (
       <TableRow>
@@ -132,7 +192,7 @@ function LineRow({
         <TableCell>{line.description}</TableCell>
         <TableCell className="capitalize text-muted-foreground">{line.line_type}</TableCell>
         <TableCell className="text-right">{line.quantity}</TableCell>
-        <TableCell>{line.unit ?? "—"}</TableCell>
+        <TableCell>{line.unit ?? (defaultUnit(line.line_type) || "—")}</TableCell>
         <TableCell className="text-right">{money(line.unit_cost)}</TableCell>
         <TableCell className="text-right">{line.markup_pct ?? 0}%</TableCell>
         <TableCell className="text-right">{money(line.unit_price)}</TableCell>
@@ -181,6 +241,7 @@ function LineRow({
         <Input
           className="h-8 w-16"
           value={draft.unit ?? ""}
+          placeholder={defaultUnit(draft.line_type)}
           onChange={(e) => setDraft({ ...draft, unit: e.target.value })}
           onBlur={() => (draft.unit ?? "") !== (line.unit ?? "") && save({ unit: draft.unit })}
         />
@@ -480,14 +541,33 @@ function AddLineItem({
   const [markup, setMarkup] = React.useState(String(markupDefault))
   const [pending, startTransition] = React.useTransition()
 
-  // Default unit cost to the labour rate when switching to a labour line.
+  // Default unit cost to the labour rate when switching to a labour line. Unit is
+  // left to the display default (not written) — see defaultUnit().
   React.useEffect(() => {
     if (lineType === "labour" && labourRate != null) {
       setUnitCost(String(labourRate))
-      setUnit("hr")
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lineType])
+
+  function addHeading() {
+    startTransition(async () => {
+      const res = await addLineItem(quoteId, {
+        line_type: "other",
+        description: "New section",
+        quantity: 0,
+        unit: null,
+        unit_cost: 0,
+        markup_pct: 0,
+      })
+      if (res.error) {
+        toast.error("Could not add section heading", { description: res.error })
+        return
+      }
+      toast.success("Section heading added")
+      onAdded()
+    })
+  }
 
   function add() {
     if (!description.trim()) {
@@ -520,8 +600,11 @@ function AddLineItem({
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
         <CardTitle className="text-base">Add line item</CardTitle>
+        <Button variant="outline" size="sm" onClick={addHeading} disabled={pending}>
+          Add section heading
+        </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex flex-wrap items-end gap-2">
@@ -554,7 +637,12 @@ function AddLineItem({
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Unit</Label>
-            <Input className="w-20" value={unit} onChange={(e) => setUnit(e.target.value)} />
+            <Input
+              className="w-20"
+              value={unit}
+              placeholder={defaultUnit(lineType)}
+              onChange={(e) => setUnit(e.target.value)}
+            />
           </div>
           <div className="space-y-1">
             <Label className="text-xs">Unit cost</Label>
