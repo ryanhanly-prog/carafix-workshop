@@ -7,12 +7,14 @@
 // idempotent upserts.
 //
 // Idempotency:
-//  - customers / stock_items / suppliers / invoices / quotes upsert on their
-//    org-scoped natural key, so a re-import updates rather than duplicates.
-//  - invoice/quote LINE ITEMS have no stable id in the source, so they are
-//    replaced: existing rows for the affected parent numbers are deleted, then
-//    re-inserted. They are counted as "updated" when their parent already
-//    existed, "inserted" otherwise.
+//  - customers / stock_items / suppliers / invoices / quotes / vehicles / jobs
+//    upsert on their org-scoped natural key, so a re-import updates rather than
+//    duplicates.
+//  - invoice/quote LINE ITEMS have no stable id, so they are replaced by parent
+//    number. TIMESHEETS have no key at all, so they are fully replaced per org.
+//
+// Each top-level section is wrapped in safe(): a malformed/empty file is logged
+// and skipped, never failing the whole batch.
 
 import type { SupabaseClient } from "@supabase/supabase-js"
 
@@ -22,19 +24,17 @@ import {
   parseCustomers,
   parseInvoiceItems,
   parseInvoicesSummary,
+  parseJobs,
   parseQuoteItems,
   parseQuotes,
   parseStocks,
+  parseTimesheets,
+  parseVehicles,
   type ParseError,
   type StockRow,
 } from "@/lib/import/mechanic-desk"
 
 export type DB = SupabaseClient<Database>
-
-// A deliberately loose client view for the generic, multi-table bulk operations
-// below. The generated Database types cannot express `.from(<dynamic string>)`
-// or `Record<string, unknown>` payloads; the importer validates shapes itself
-// and writes only to known tables, so the looser surface is appropriate here.
 type LooseDB = SupabaseClient
 
 export type EntityStat = { inserted: number; updated: number; failed: number }
@@ -47,17 +47,23 @@ export type ImportStats = {
   historical_invoice_items: EntityStat
   historical_quotes: EntityStat
   historical_quote_items: EntityStat
+  historical_vehicles: EntityStat
+  historical_jobs: EntityStat
+  historical_timesheets: EntityStat
+  job_type_aliases: { discovered: number }
 }
 export type ImportResult = {
   stats: ImportStats
   parseErrors: ParseError[]
   dbErrors: string[]
+  skippedFiles: string[]
   totals: { inserted: number; updated: number; failed: number }
 }
 
 export type ImportFile = { name: string; content: string }
 
 const BATCH = 500
+const LINE_BATCH = 1000 // larger batches for the high-volume line-item tables
 
 function emptyStat(): EntityStat {
   return { inserted: 0, updated: 0, failed: 0 }
@@ -69,8 +75,6 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out
 }
 
-// Collect every CSV of a given kind across all supplied files (export ZIPs can
-// repeat e.g. Stocks.csv); returns the concatenated text bodies.
 function filesOfKind(files: ImportFile[], kind: string): string[] {
   const wanted = Object.entries(KNOWN_CSV_FILES)
     .filter(([, k]) => k === kind)
@@ -83,10 +87,16 @@ function filesOfKind(files: ImportFile[], kind: string): string[] {
     .map((f) => f.content)
 }
 
-// Page through a single column for the whole org (PostgREST caps a select at
-// 1000 rows, so we range-paginate). Order is REQUIRED: range pagination without
-// a stable sort can return overlapping/missing rows across pages, which would
-// silently corrupt the existing-key set and break idempotency.
+async function safe(label: string, dbErrors: string[], fn: () => Promise<void>) {
+  try {
+    await fn()
+  } catch (e) {
+    dbErrors.push(`${label}: ${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+
+// Order is REQUIRED on paginated reads: range pagination without a stable sort
+// can return overlapping/missing rows across pages, corrupting the key set.
 async function fetchExistingKeys(
   db: LooseDB,
   table: string,
@@ -147,13 +157,14 @@ async function upsertBatches(
   onConflict: string,
   stat: EntityStat,
   dbErrors: string[],
-  ignoreDuplicates = false
+  ignoreDuplicates = false,
+  batchSize = BATCH
 ) {
-  for (const c of chunk(rows, BATCH)) {
+  for (const c of chunk(rows, batchSize)) {
     const { error } = await db.from(table).upsert(c, { onConflict, ignoreDuplicates })
     if (error) {
       stat.failed += c.length
-      stat.inserted = Math.max(0, stat.inserted - c.length) // it didn't actually land
+      stat.inserted = Math.max(0, stat.inserted - c.length)
       dbErrors.push(`upsert ${table}: ${error.message}`)
     }
   }
@@ -163,10 +174,11 @@ async function insertBatches(
   db: LooseDB,
   table: string,
   rows: Record<string, unknown>[],
-  dbErrors: string[]
+  dbErrors: string[],
+  batchSize = BATCH
 ): Promise<number> {
   let failed = 0
-  for (const c of chunk(rows, BATCH)) {
+  for (const c of chunk(rows, batchSize)) {
     const { error } = await db.from(table).insert(c)
     if (error) {
       failed += c.length
@@ -174,6 +186,35 @@ async function insertBatches(
     }
   }
   return failed
+}
+
+// ---- job-type suggestion (Jaccard over word tokens; no LLM) ----
+function tokenize(s: string): Set<string> {
+  return new Set(
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+  )
+}
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0
+  let inter = 0
+  for (const t of a) if (b.has(t)) inter++
+  return inter / (a.size + b.size - inter)
+}
+function suggestCanonical(
+  raw: string,
+  canonicals: { id: string; name: string; slug: string }[]
+): { id: string; confidence: number } | null {
+  const rt = tokenize(raw)
+  let best: { id: string; confidence: number } | null = null
+  for (const c of canonicals) {
+    const sim = jaccard(rt, tokenize(`${c.name} ${c.slug.replace(/_/g, " ")}`))
+    if (sim > 0.5 && (!best || sim > best.confidence)) best = { id: c.id, confidence: sim }
+  }
+  return best
 }
 
 export async function runImport(
@@ -192,26 +233,53 @@ export async function runImport(
     historical_invoice_items: emptyStat(),
     historical_quotes: emptyStat(),
     historical_quote_items: emptyStat(),
+    historical_vehicles: emptyStat(),
+    historical_jobs: emptyStat(),
+    historical_timesheets: emptyStat(),
+    job_type_aliases: { discovered: 0 },
   }
   const parseErrors: ParseError[] = []
   const dbErrors: string[] = []
-  const countSkips = (errs: ParseError[]) =>
-    errs.filter((e) => e.message.includes("skipped")).length
+  const skippedFiles: string[] = []
+  const nowISO = new Date().toISOString()
+  const countSkips = (errs: ParseError[]) => errs.filter((e) => e.message.includes("skipped")).length
+
+  // Job-type taxonomy context, loaded once. Raw label -> existing confirmed
+  // canonical (for back-link backfill); canonical list (for suggestions).
+  const existingAliasCanonical = new Map<string, string | null>()
+  let canonicalTypes: { id: string; name: string; slug: string }[] = []
+  const jobTypeCounts = new Map<string, number>()
+  await safe("load job-type context", dbErrors, async () => {
+    const { data: cts } = await db
+      .from("job_type_canonical")
+      .select("id, name, slug")
+      .eq("organisation_id", org)
+    canonicalTypes = (cts ?? []) as { id: string; name: string; slug: string }[]
+    const { data: al } = await db
+      .from("job_type_aliases")
+      .select("raw_value, canonical_id")
+      .eq("organisation_id", org)
+    for (const a of (al ?? []) as { raw_value: string; canonical_id: string | null }[]) {
+      existingAliasCanonical.set(a.raw_value, a.canonical_id)
+    }
+  })
+  const countJobType = (raw: string | null | undefined) => {
+    const v = (raw ?? "").trim()
+    if (v) jobTypeCounts.set(v, (jobTypeCounts.get(v) ?? 0) + 1)
+  }
 
   // ---------------- Customers ----------------
-  {
+  await safe("customers", dbErrors, async () => {
     const dedup = new Map<string, ReturnType<typeof parseCustomers>["rows"][number]["row"]>()
     let skipped = 0
     for (const csv of filesOfKind(files, "customers")) {
       const res = parseCustomers(csv)
       parseErrors.push(...res.errors)
       skipped += countSkips(res.errors)
-      for (const { row } of res.rows) {
-        const key = row.external_id ?? `name:${row.name}`
-        dedup.set(key, row)
-      }
+      for (const { row } of res.rows) dedup.set(row.external_id ?? `name:${row.name}`, row)
     }
     const rows = [...dedup.values()]
+    if (rows.length === 0) return
     const existing = await fetchExistingKeys(db, "customers", org, "external_id")
     let inserted = 0
     let updated = 0
@@ -222,25 +290,22 @@ export async function runImport(
     })
     stats.customers = { inserted, updated, failed: skipped }
     await upsertBatches(db, "customers", payload, "organisation_id,external_id", stats.customers, dbErrors)
-  }
+  })
 
   // ---------------- Suppliers + Stock items ----------------
   const stockRows: StockRow[] = []
-  {
+  await safe("stock_items", dbErrors, async () => {
     const dedup = new Map<string, StockRow>()
     let skipped = 0
     for (const csv of filesOfKind(files, "stocks")) {
       const res = parseStocks(csv)
       parseErrors.push(...res.errors)
       skipped += countSkips(res.errors)
-      for (const { row } of res.rows) {
-        const key = row.external_id ?? `sn:${row.stock_number}`
-        dedup.set(key, row) // last wins across duplicate Stocks.csv
-      }
+      for (const { row } of res.rows) dedup.set(row.external_id ?? `sn:${row.stock_number}`, row)
     }
     stockRows.push(...dedup.values())
+    if (stockRows.length === 0) return
 
-    // Suppliers first (referenced by the link table).
     const supplierNames = new Set<string>()
     for (const s of stockRows) for (const n of s.suppliers) supplierNames.add(n)
     const existingSuppliers = await fetchExistingKeys(db, "suppliers", org, "name")
@@ -252,27 +317,15 @@ export async function runImport(
       return { name, organisation_id: org }
     })
     stats.suppliers = { inserted: sInserted, updated: sUpdated, failed: 0 }
-    // ignoreDuplicates: existing suppliers are left entirely untouched so manually
-    // entered contact details (phone/email/etc.) survive re-imports. We only have
-    // the name from Mechanic Desk anyway, so there is nothing to update.
-    await upsertBatches(
-      db,
-      "suppliers",
-      supplierPayload,
-      "organisation_id,name",
-      stats.suppliers,
-      dbErrors,
-      true
-    )
+    // Leave existing suppliers untouched so manually entered contact details survive.
+    await upsertBatches(db, "suppliers", supplierPayload, "organisation_id,name", stats.suppliers, dbErrors, true)
 
-    // Stock items.
     const existingStock = await fetchExistingKeys(db, "stock_items", org, "external_id")
     let inserted = 0
     let updated = 0
     const stockPayload = stockRows.map((r) => {
       if (r.external_id && existingStock.has(r.external_id)) updated++
       else inserted++
-      // strip relationship-only fields before insert
       const { suppliers: _s, first_supplier_stock_number: _f, ...cols } = r
       void _s
       void _f
@@ -281,7 +334,6 @@ export async function runImport(
     stats.stock_items = { inserted, updated, failed: skipped }
     await upsertBatches(db, "stock_items", stockPayload, "organisation_id,external_id", stats.stock_items, dbErrors)
 
-    // Link stock <-> suppliers.
     const supplierMap = await fetchKeyIdMap(db, "suppliers", org, "name")
     const stockMap = await fetchKeyIdMap(db, "stock_items", org, "external_id")
     const links: Record<string, unknown>[] = []
@@ -306,10 +358,10 @@ export async function runImport(
       if (error) dbErrors.push(`upsert stock_item_suppliers: ${error.message}`)
       else stats.stock_item_suppliers.linked += c.length
     }
-  }
+  })
 
   // ---------------- Invoices + items ----------------
-  {
+  await safe("historical_invoices", dbErrors, async () => {
     const dedup = new Map<string, ReturnType<typeof parseInvoicesSummary>["rows"][number]["row"]>()
     let skipped = 0
     for (const csv of filesOfKind(files, "invoices")) {
@@ -319,18 +371,25 @@ export async function runImport(
       for (const { row } of res.rows) dedup.set(row.invoice_number, row)
     }
     const rows = [...dedup.values()]
+    if (rows.length === 0) return
     const existing = await fetchExistingKeys(db, "historical_invoices", org, "invoice_number")
     let inserted = 0
     let updated = 0
     const payload = rows.map((r) => {
       if (existing.has(r.invoice_number)) updated++
       else inserted++
-      return { ...r, organisation_id: org }
+      countJobType(r.first_job_type)
+      return {
+        ...r,
+        organisation_id: org,
+        job_type_canonical_id: r.first_job_type
+          ? existingAliasCanonical.get(r.first_job_type.trim()) ?? null
+          : null,
+      }
     })
     stats.historical_invoices = { inserted, updated, failed: skipped }
     await upsertBatches(db, "historical_invoices", payload, "organisation_id,invoice_number", stats.historical_invoices, dbErrors)
 
-    // Items: resolve parent id, replace by parent number.
     const invoiceMap = await fetchKeyIdMap(db, "historical_invoices", org, "invoice_number")
     const itemDedup: ReturnType<typeof parseInvoiceItems>["rows"][number]["row"][] = []
     let itemSkips = 0
@@ -356,12 +415,12 @@ export async function runImport(
       else iInserted++
       return { ...r, organisation_id: org, invoice_id: invoiceMap.get(r.invoice_number) ?? null }
     })
-    const failed = await insertBatches(db, "historical_invoice_items", itemPayload, dbErrors)
+    const failed = await insertBatches(db, "historical_invoice_items", itemPayload, dbErrors, LINE_BATCH)
     stats.historical_invoice_items = { inserted: iInserted, updated: iUpdated, failed: itemSkips + failed }
-  }
+  })
 
   // ---------------- Quotes + items ----------------
-  {
+  await safe("historical_quotes", dbErrors, async () => {
     const dedup = new Map<string, ReturnType<typeof parseQuotes>["rows"][number]["row"]>()
     let skipped = 0
     for (const csv of filesOfKind(files, "quotes")) {
@@ -371,6 +430,7 @@ export async function runImport(
       for (const { row } of res.rows) dedup.set(row.quote_number, row)
     }
     const rows = [...dedup.values()]
+    if (rows.length === 0) return
     const existing = await fetchExistingKeys(db, "historical_quotes", org, "quote_number")
     let inserted = 0
     let updated = 0
@@ -407,9 +467,109 @@ export async function runImport(
       else qInserted++
       return { ...r, organisation_id: org, quote_id: quoteMap.get(r.quote_number) ?? null }
     })
-    const failed = await insertBatches(db, "historical_quote_items", itemPayload, dbErrors)
+    const failed = await insertBatches(db, "historical_quote_items", itemPayload, dbErrors, LINE_BATCH)
     stats.historical_quote_items = { inserted: qInserted, updated: qUpdated, failed: itemSkips + failed }
-  }
+  })
+
+  // ---------------- Vehicles ----------------
+  await safe("historical_vehicles", dbErrors, async () => {
+    const dedup = new Map<string, ReturnType<typeof parseVehicles>["rows"][number]["row"]>()
+    let skipped = 0
+    for (const csv of filesOfKind(files, "vehicles")) {
+      const res = parseVehicles(csv)
+      parseErrors.push(...res.errors)
+      skipped += countSkips(res.errors)
+      for (const { row } of res.rows) if (row.external_id) dedup.set(row.external_id, row)
+    }
+    const rows = [...dedup.values()]
+    if (rows.length === 0) return
+    const existing = await fetchExistingKeys(db, "historical_vehicles", org, "external_id")
+    let inserted = 0
+    let updated = 0
+    const payload = rows.map((r) => {
+      if (r.external_id && existing.has(r.external_id)) updated++
+      else inserted++
+      return { ...r, organisation_id: org }
+    })
+    stats.historical_vehicles = { inserted, updated, failed: skipped }
+    await upsertBatches(db, "historical_vehicles", payload, "organisation_id,external_id", stats.historical_vehicles, dbErrors)
+  })
+
+  // ---------------- Jobs ----------------
+  await safe("historical_jobs", dbErrors, async () => {
+    const dedup = new Map<string, ReturnType<typeof parseJobs>["rows"][number]["row"]>()
+    let skipped = 0
+    for (const csv of filesOfKind(files, "jobs")) {
+      const res = parseJobs(csv)
+      parseErrors.push(...res.errors)
+      skipped += countSkips(res.errors)
+      for (const { row } of res.rows) dedup.set(row.job_number, row)
+    }
+    const rows = [...dedup.values()]
+    if (rows.length === 0) return
+    const existing = await fetchExistingKeys(db, "historical_jobs", org, "job_number")
+    let inserted = 0
+    let updated = 0
+    const payload = rows.map((r) => {
+      if (existing.has(r.job_number)) updated++
+      else inserted++
+      countJobType(r.job_type_raw)
+      return {
+        ...r,
+        organisation_id: org,
+        job_type_canonical_id: r.job_type_raw
+          ? existingAliasCanonical.get(r.job_type_raw.trim()) ?? null
+          : null,
+      }
+    })
+    stats.historical_jobs = { inserted, updated, failed: skipped }
+    await upsertBatches(db, "historical_jobs", payload, "organisation_id,job_number", stats.historical_jobs, dbErrors)
+  })
+
+  // ---------------- Timesheets (no natural key → full replace per org) ----------------
+  await safe("historical_timesheets", dbErrors, async () => {
+    const csvs = filesOfKind(files, "timesheets")
+    if (csvs.length === 0) return
+    const rows: ReturnType<typeof parseTimesheets>["rows"][number]["row"][] = []
+    for (const csv of csvs) {
+      const res = parseTimesheets(csv)
+      parseErrors.push(...res.errors)
+      for (const { row } of res.rows) rows.push(row)
+    }
+    // Replace: timesheets are import-only, so wipe this org's set and re-insert.
+    const { error: delErr } = await db
+      .from("historical_timesheets")
+      .delete()
+      .eq("organisation_id", org)
+    if (delErr) {
+      dbErrors.push(`delete historical_timesheets: ${delErr.message}`)
+      return
+    }
+    const payload = rows.map((r) => ({ ...r, organisation_id: org }))
+    const failed = await insertBatches(db, "historical_timesheets", payload, dbErrors, LINE_BATCH)
+    stats.historical_timesheets = { inserted: payload.length - failed, updated: 0, failed }
+  })
+
+  // ---------------- Job-type aliases (after invoices + jobs counted) ----------------
+  await safe("job_type_aliases", dbErrors, async () => {
+    if (jobTypeCounts.size === 0) return
+    const payload = [...jobTypeCounts.entries()].map(([raw, count]) => {
+      const suggestion = suggestCanonical(raw, canonicalTypes)
+      return {
+        organisation_id: org,
+        raw_value: raw,
+        occurrence_count: count,
+        last_seen: nowISO,
+        suggested_canonical_id: suggestion?.id ?? null,
+        suggestion_confidence: suggestion?.confidence ?? null,
+        // Preserve any existing confirmed mapping (Catherine's work wins).
+        canonical_id: existingAliasCanonical.get(raw) ?? null,
+      }
+    })
+    const stat = emptyStat()
+    await upsertBatches(db, "job_type_aliases", payload, "organisation_id,raw_value", stat, dbErrors)
+    stats.job_type_aliases.discovered = jobTypeCounts.size
+  })
 
   const entityStats = [
     stats.customers,
@@ -419,6 +579,9 @@ export async function runImport(
     stats.historical_invoice_items,
     stats.historical_quotes,
     stats.historical_quote_items,
+    stats.historical_vehicles,
+    stats.historical_jobs,
+    stats.historical_timesheets,
   ]
   const totals = {
     inserted: entityStats.reduce((a, s) => a + s.inserted, 0),
@@ -426,5 +589,5 @@ export async function runImport(
     failed: entityStats.reduce((a, s) => a + s.failed, 0),
   }
 
-  return { stats, parseErrors, dbErrors, totals }
+  return { stats, parseErrors, dbErrors, skippedFiles, totals }
 }

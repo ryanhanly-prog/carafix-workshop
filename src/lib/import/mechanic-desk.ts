@@ -81,8 +81,10 @@ function toISOTimestamp(
   let d = parseDateFns(s, "dd/MM/yyyy HH:mm", new Date())
   if (!isValid(d)) d = parseDateFns(s, "dd/MM/yyyy", new Date())
   if (isValid(d)) return d.toISOString()
-  // Fallback: ISO-ish "YYYY-MM-DD HH:mm:ss +1000"
-  const native = new Date(s.replace(" ", "T"))
+  // Fallback: ISO-ish "YYYY-MM-DD HH:mm:ss +1000" (full export uses this). Try the
+  // raw string first (V8 parses the offset), then a T-separated variant.
+  let native = new Date(s)
+  if (Number.isNaN(native.getTime())) native = new Date(s.replace(" ", "T"))
   if (!Number.isNaN(native.getTime())) return native.toISOString()
   errors.push({ lineNumber, field, message: "invalid timestamp", rawValue: s })
   return null
@@ -456,6 +458,181 @@ export function parseQuoteItems(csv: string): ParseResult<QuoteItemRow> {
   return { rows, errors }
 }
 
+export type VehicleRow = {
+  external_id: string | null
+  vehicle_number: string | null
+  registration_number: string | null
+  fleet_number: string | null
+  chassis_number: string | null
+  vin: string | null
+  make: string | null
+  model: string | null
+  year: string | null
+  customer_external_id: string | null
+  customer_name: string | null
+  notes: string | null
+}
+
+export type HistJobRow = {
+  job_number: string
+  status: string | null
+  key_tag: string | null
+  vehicle_number: string | null
+  registration_number: string | null
+  customer_external_id: string | null
+  customer_number: string | null
+  customer_name: string | null
+  job_type_raw: string | null
+  description: string | null
+  pickup_time: string | null
+  start_time: string | null
+  finish_time: string | null
+  estimate_hours: number | null
+  finished_by: string | null
+  on_hold: boolean | null
+  on_hold_reason: string | null
+  odometer: string | null
+  comments: string | null
+  internal_notes: string | null
+  tags: string | null
+  invoice_number: string | null
+  next_service_date: string | null
+  booked_by: string | null
+  created_by: string | null
+  created_date: string | null
+}
+
+export type TimesheetRow = {
+  date: string | null
+  job_number: string | null
+  job_title: string | null
+  job_description: string | null
+  job_status: string | null
+  customer_name: string | null
+  employee: string | null
+  start_time: string | null
+  end_time: string | null
+  comment: string | null
+  total_hours: number | null
+  is_internal_no_charge: boolean | null
+  overtime: boolean | null
+  effective_hours: number | null
+  charged_hours: number | null
+  amount_charged: number | null
+  invoice_item_description: string | null
+  registration_number: string | null
+  fleet_number: string | null
+}
+
+export function parseVehicles(csv: string): ParseResult<VehicleRow> {
+  const rows: ParsedRow<VehicleRow>[] = []
+  const errors: ParseError[] = []
+  parseCsv(csv).forEach((r, i) => {
+    const lineNumber = i + 2
+    const external_id = str(r["ID"])
+    if (!external_id) {
+      errors.push({ lineNumber, field: "ID", message: "vehicle skipped: no ID" })
+      return
+    }
+    rows.push({
+      lineNumber,
+      row: {
+        external_id,
+        vehicle_number: str(r["Vehicle Number"]),
+        registration_number: str(r["Registration Number"]),
+        fleet_number: str(r["Fleet Number"]),
+        chassis_number: str(r["Chassis Number"]),
+        vin: str(r["VIN"]),
+        make: str(r["Make"]),
+        model: str(r["Model"]),
+        year: str(r["Year"]),
+        customer_external_id: str(r["Customer ID"]),
+        customer_name: str(r["Customer Name"]),
+        notes: str(r["Note"]),
+      },
+    })
+  })
+  return { rows, errors }
+}
+
+export function parseJobs(csv: string): ParseResult<HistJobRow> {
+  const rows: ParsedRow<HistJobRow>[] = []
+  const errors: ParseError[] = []
+  parseCsv(csv).forEach((r, i) => {
+    const lineNumber = i + 2
+    const job_number = str(r["Job Number"])
+    if (!job_number) {
+      errors.push({ lineNumber, field: "Job Number", message: "job skipped: no number" })
+      return
+    }
+    rows.push({
+      lineNumber,
+      row: {
+        job_number,
+        status: str(r["Status"]),
+        key_tag: str(r["Key Tag"]),
+        vehicle_number: str(r["Vehicle Number"]),
+        registration_number: str(r["Registration Number"]),
+        customer_external_id: str(r["Customer ID"]),
+        customer_number: str(r["Customer Number"]),
+        customer_name: str(r["Customer Name"]),
+        job_type_raw: str(r["Job Type"]),
+        description: str(r["Description"]),
+        pickup_time: toISOTimestamp(r["Pickup Time"], lineNumber, "Pickup Time", errors),
+        start_time: toISOTimestamp(r["Time"], lineNumber, "Time", errors),
+        finish_time: toISOTimestamp(r["Finish Time"], lineNumber, "Finish Time", errors),
+        estimate_hours: num(r["Estimate Hours"]),
+        finished_by: str(r["Finished By"]),
+        on_hold: bool(r["On Hold"]),
+        on_hold_reason: str(r["On Hold Reason"]),
+        odometer: str(r["Odometer"]),
+        comments: str(r["Comments"]),
+        internal_notes: str(r["Notes"]),
+        tags: str(r["Tags"]),
+        invoice_number: str(r["Invoice Number"]),
+        next_service_date: toISODate(r["Next Service Date"], lineNumber, "Next Service Date", errors),
+        booked_by: str(r["Booked By"]),
+        created_by: str(r["Created By"]),
+        created_date: toISODate(r["Created Date"], lineNumber, "Created Date", errors),
+      },
+    })
+  })
+  return { rows, errors }
+}
+
+export function parseTimesheets(csv: string): ParseResult<TimesheetRow> {
+  const rows: ParsedRow<TimesheetRow>[] = []
+  const errors: ParseError[] = []
+  parseCsv(csv).forEach((r, i) => {
+    const lineNumber = i + 2
+    rows.push({
+      lineNumber,
+      row: {
+        date: toISODate(r["Date"], lineNumber, "Date", errors),
+        job_number: str(r["Job No."]),
+        job_title: str(r["Job Title"]),
+        job_description: str(r["Job Description"]),
+        job_status: str(r["Job Status"]),
+        customer_name: str(r["Customer"]),
+        employee: str(r["Employee"]),
+        start_time: str(r["Start Time"]),
+        end_time: str(r["End Time"]),
+        comment: str(r["Comment"]),
+        total_hours: num(r["Total Hours"]),
+        is_internal_no_charge: bool(r["Is Internal/No Charge?"]),
+        overtime: bool(r["Overtime"]),
+        effective_hours: num(r["Effective Hours"]),
+        charged_hours: num(r["Charged Hrs/Qty"]),
+        amount_charged: num(r["Amount Charged"]),
+        invoice_item_description: str(r["Invoice Item Description"]),
+        registration_number: str(r["Registration Number"]),
+        fleet_number: str(r["Fleet Number"]),
+      },
+    })
+  })
+  return { rows, errors }
+}
+
 // Maps the CSV filename (as it appears inside a Mechanic Desk export ZIP) to its
 // parser kind. Unknown files are ignored by the orchestrator.
 export const KNOWN_CSV_FILES = {
@@ -465,6 +642,9 @@ export const KNOWN_CSV_FILES = {
   "Invoice Items.csv": "invoice_items",
   "Quotes.csv": "quotes",
   "Quote Items.csv": "quote_items",
+  "Vehicles.csv": "vehicles",
+  "Jobs.csv": "jobs",
+  "Timesheets.csv": "timesheets",
 } as const
 
 export type CsvKind = (typeof KNOWN_CSV_FILES)[keyof typeof KNOWN_CSV_FILES]
