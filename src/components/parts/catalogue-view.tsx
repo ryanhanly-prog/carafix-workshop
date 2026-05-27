@@ -195,7 +195,9 @@ function DetailDrawer({
                 <p className="text-muted-foreground">
                   {loading
                     ? "Loading…"
-                    : `${usedCount ?? 0} historical invoice line item(s)`}
+                    : `${(usedCount ?? 0).toLocaleString()} historical invoice line item${
+                        usedCount === 1 ? "" : "s"
+                      }`}
                 </p>
               </div>
             </div>
@@ -327,7 +329,9 @@ export function CatalogueView({
       )}
 
       <Card>
-        <CardContent className={cn("p-0 transition-opacity", pending && "opacity-50")}>
+        <CardContent
+          className={cn("overflow-x-auto p-0 transition-opacity", pending && "opacity-50")}
+        >
           <Table>
             <TableHeader>
               <TableRow>

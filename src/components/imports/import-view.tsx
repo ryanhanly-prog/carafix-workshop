@@ -23,12 +23,38 @@ export type ImportBatch = {
   id: string
   status: string
   files_uploaded: string[] | null
+  stats: unknown
   rows_inserted: number | null
   rows_updated: number | null
   rows_failed: number | null
   uploaded_at: string | null
   completed_at: string | null
   error_message: string | null
+}
+
+type EntityStat = { inserted?: number; updated?: number }
+
+// Human-readable summary of what an import contained, derived from the stats
+// jsonb (rows = inserted + updated per entity). Falls back to the raw file
+// names, then a dash, when stats are missing/unparseable.
+function summarise(batch: ImportBatch): string {
+  const s = batch.stats as Record<string, EntityStat> | null
+  if (s && typeof s === "object") {
+    const parts: string[] = []
+    const add = (label: string, key: string) => {
+      const st = s[key]
+      if (!st) return
+      const n = (st.inserted ?? 0) + (st.updated ?? 0)
+      if (n > 0) parts.push(`${n.toLocaleString()} ${label}`)
+    }
+    add("stock", "stock_items")
+    add("customers", "customers")
+    add("suppliers", "suppliers")
+    add("invoices", "historical_invoices")
+    add("quotes", "historical_quotes")
+    if (parts.length > 0) return parts.join(" · ")
+  }
+  return (batch.files_uploaded ?? []).join(", ") || "—"
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -214,7 +240,7 @@ export function ImportView({ batches }: { batches: ImportBatch[] }) {
                     <TableCell>{formatWhen(b.uploaded_at)}</TableCell>
                     <TableCell className="max-w-[260px]">
                       <span className="block truncate text-xs text-muted-foreground">
-                        {(b.files_uploaded ?? []).join(", ") || "—"}
+                        {summarise(b)}
                       </span>
                       {b.error_message && (
                         <span className="block truncate text-xs text-red-600">
