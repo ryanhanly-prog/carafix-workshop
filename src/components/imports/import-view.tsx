@@ -57,6 +57,29 @@ function summarise(batch: ImportBatch): string {
   return (batch.files_uploaded ?? []).join(", ") || "—"
 }
 
+// A prominent one-line summary of the most recent completed import, leading with
+// the high-volume historical entities.
+function latestImportSummary(batch: ImportBatch): string | null {
+  const s = batch.stats as Record<string, EntityStat> | null
+  if (!s || typeof s !== "object") return null
+  const rows = (key: string) => {
+    const st = s[key]
+    return st ? (st.inserted ?? 0) + (st.updated ?? 0) : 0
+  }
+  const parts: string[] = []
+  const add = (label: string, key: string) => {
+    const n = rows(key)
+    if (n > 0) parts.push(`${n.toLocaleString()} ${label}`)
+  }
+  add("invoices", "historical_invoices")
+  add("line items", "historical_invoice_items")
+  add("quotes", "historical_quotes")
+  add("jobs", "historical_jobs")
+  add("timesheets", "historical_timesheets")
+  add("vehicles", "historical_vehicles")
+  return parts.length > 0 ? parts.join(" · ") : null
+}
+
 function StatusBadge({ status }: { status: string }) {
   const variant =
     status === "completed"
@@ -83,6 +106,9 @@ export function ImportView({ batches }: { batches: ImportBatch[] }) {
   const [dragOver, setDragOver] = React.useState(false)
   const [pending, startTransition] = React.useTransition()
   const inputRef = React.useRef<HTMLInputElement>(null)
+
+  const latest = batches.find((b) => b.status === "completed")
+  const latestSummary = latest ? latestImportSummary(latest) : null
 
   function addFiles(list: FileList | null) {
     if (!list) return
@@ -120,11 +146,17 @@ export function ImportView({ batches }: { batches: ImportBatch[] }) {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Imports</h1>
         <p className="text-sm text-muted-foreground">
-          Upload Mechanic Desk export ZIPs (Customers, Stocks, Invoices, Quotes).
-          Re-importing the same export updates existing records rather than
-          duplicating them.
+          Upload Mechanic Desk export ZIPs (Customers, Stocks, Invoices, Quotes,
+          Jobs, Timesheets, Vehicles). Re-importing the same export updates existing
+          records rather than duplicating them.
         </p>
       </div>
+
+      {latestSummary && (
+        <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+          <span className="font-medium">Latest import:</span> {latestSummary}
+        </div>
+      )}
 
       <Card>
         <CardContent className="space-y-4 pt-6">

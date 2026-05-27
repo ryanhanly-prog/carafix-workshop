@@ -298,7 +298,7 @@ function AliasesTab({
               <p className="text-sm">
                 <span className="font-semibold">{unmapped.length} unmapped job type{unmapped.length === 1 ? "" : "s"}</span>{" "}
                 covering <span className="font-semibold">{unmappedPct}%</span> of historical
-                work. Map the top values to unlock job-type analytics.
+                work. Map the top 20 to unlock job-type analytics.
               </p>
               <div className="flex gap-2">
                 <Button
