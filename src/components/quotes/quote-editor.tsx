@@ -299,65 +299,73 @@ export function QuoteEditor({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {/* Line items */}
-        <div className="space-y-4 lg:col-span-2">
-          <Card>
-            <CardContent className="overflow-x-auto p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">#</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead>Unit</TableHead>
-                    <TableHead className="text-right">Unit cost</TableHead>
-                    <TableHead className="text-right">Markup</TableHead>
-                    <TableHead className="text-right">Unit price</TableHead>
-                    <TableHead className="text-right">Line total</TableHead>
-                    {!readOnly && <TableHead />}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {lines.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={readOnly ? 9 : 10} className="py-10 text-center text-muted-foreground">
-                        No line items yet. {!readOnly && "Clone a similar quote, or add lines below."}
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    lines.map((l) => (
-                      <LineRow key={l.id} line={l} quoteId={quote.id} readOnly={readOnly} onChanged={refresh} />
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+      {/* Line items — full content width */}
+      <Card>
+        <CardContent className="overflow-x-auto p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10">#</TableHead>
+                <TableHead>Description</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead className="text-right">Qty</TableHead>
+                <TableHead>Unit</TableHead>
+                <TableHead className="text-right">Unit cost</TableHead>
+                <TableHead className="text-right">Markup</TableHead>
+                <TableHead className="text-right">Unit price</TableHead>
+                <TableHead className="text-right">Line total</TableHead>
+                {!readOnly && <TableHead />}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {lines.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={readOnly ? 9 : 10} className="py-10 text-center text-muted-foreground">
+                    No line items yet. {!readOnly && "Clone a similar quote, or add lines below."}
+                  </TableCell>
+                </TableRow>
+              ) : (
+                lines.map((l) => (
+                  <LineRow key={l.id} line={l} quoteId={quote.id} readOnly={readOnly} onChanged={refresh} />
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
-          {!readOnly && (
-            <AddLineItem
-              quoteId={quote.id}
-              markupDefault={markupDefault}
-              labourRate={labourRate}
-              onAdded={refresh}
-            />
-          )}
-        </div>
+      {!readOnly && (
+        <AddLineItem
+          quoteId={quote.id}
+          markupDefault={markupDefault}
+          labourRate={labourRate}
+          onAdded={refresh}
+        />
+      )}
 
-        {/* Right column: similar quotes + totals */}
-        <div className="space-y-4">
-          <TotalsCard header={header} readOnly={readOnly} onChanged={refresh} routerRefresh={() => router.refresh()} />
-          {!readOnly && <SimilarQuotesPanel quote={header} onCloned={refresh} />}
-        </div>
-      </div>
+      {!readOnly && <SimilarQuotesPanel quote={header} onCloned={refresh} />}
+
+      <TotalsFooter
+        header={header}
+        readOnly={readOnly}
+        onChanged={refresh}
+        routerRefresh={() => router.refresh()}
+      />
     </div>
   )
 }
 
-// ----------------------------- totals + status -----------------------------
-function TotalsCard({
+// ----------------------------- totals + status (sticky footer) -----------------------------
+function FooterStat({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="text-sm">
+      <span className="text-muted-foreground">{label} </span>
+      <span className="font-medium tabular-nums">{value}</span>
+    </span>
+  )
+}
+
+function TotalsFooter({
   header,
   readOnly,
   onChanged,
@@ -370,20 +378,21 @@ function TotalsCard({
 }) {
   const [pending, startTransition] = React.useTransition()
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Totals</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-1 text-sm">
-        <Row label="Parts" value={money(header.subtotal_parts)} />
-        <Row label="Labour" value={money(header.subtotal_labour)} />
-        <Row label="Consumables" value={money(header.subtotal_consumables)} />
-        <Row label="Other / freight" value={money(header.subtotal_other)} />
-        <div className="my-2 border-t" />
-        <Row label="Total" value={money(header.total)} bold />
+    // Sticky to the bottom of the scroll area; -mx-6 spans the main's padding.
+    <div className="sticky bottom-0 z-20 -mx-6 border-t bg-background px-6 py-3">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+        <FooterStat label="Parts" value={money(header.subtotal_parts)} />
+        <FooterStat label="Labour" value={money(header.subtotal_labour)} />
+        <FooterStat label="Consumables" value={money(header.subtotal_consumables)} />
+        <FooterStat label="Other" value={money(header.subtotal_other)} />
+
+        <div className="ml-auto flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Total</span>
+          <span className="text-lg font-semibold tabular-nums">{money(header.total)}</span>
+        </div>
+
         {!readOnly && (
-          <div className="space-y-1 pt-3">
-            <Label className="text-xs">Status</Label>
+          <div className="flex items-center gap-2">
             <Select
               value={header.status}
               onValueChange={(v) =>
@@ -397,28 +406,19 @@ function TotalsCard({
               }
               disabled={pending}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {STATUSES.map((s) => (
                   <SelectItem key={s} value={s}>{s.replace(/_/g, " ")}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {header.sent_at && (
-              <p className="text-xs text-muted-foreground">Sent {formatDate(header.sent_at)}</p>
-            )}
           </div>
         )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className={cn("text-muted-foreground", bold && "font-medium text-foreground")}>{label}</span>
-      <span className={cn("tabular-nums", bold && "font-semibold")}>{value}</span>
+      </div>
+      {header.sent_at && (
+        <p className="mt-1 text-xs text-muted-foreground">Sent {formatDate(header.sent_at)}</p>
+      )}
     </div>
   )
 }
