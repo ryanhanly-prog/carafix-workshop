@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Tags, Upload } from "lucide-react"
+import { ScrollText, Shield, Tags, Upload } from "lucide-react"
 
 import { Card, CardContent } from "@/components/ui/card"
 
@@ -8,8 +8,20 @@ const items = [
     href: "/settings/job-types",
     title: "Job types",
     description:
-      "Map Mechanic Desk's raw job-type labels onto Carafix's canonical types.",
+      "Map raw job-type labels onto canonical types and set per-type labour-rate & markup defaults.",
     icon: Tags,
+  },
+  {
+    href: "/settings/insurers",
+    title: "Insurers",
+    description: "Capped labour rates used by insurance job types.",
+    icon: Shield,
+  },
+  {
+    href: "/settings/audit-log",
+    title: "Audit log",
+    description: "Who changed job-type defaults and insurers, and when.",
+    icon: ScrollText,
   },
   {
     href: "/imports",

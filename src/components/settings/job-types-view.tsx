@@ -42,6 +42,10 @@ import {
   mapRemainingToOther,
   updateCanonical,
 } from "@/lib/actions/job-types"
+import {
+  JobTypeDefaultsTab,
+  type JobTypeDefaultRow,
+} from "@/components/settings/job-type-defaults-tab"
 import { formatDate } from "@/lib/format"
 
 export type CanonicalType = {
@@ -440,9 +444,11 @@ function AliasesTab({
 export function JobTypesView({
   types,
   aliases,
+  defaults,
 }: {
   types: CanonicalType[]
   aliases: Alias[]
+  defaults: JobTypeDefaultRow[]
 }) {
   const router = useRouter()
   const onChanged = () => router.refresh()
@@ -461,12 +467,16 @@ export function JobTypesView({
         <TabsList>
           <TabsTrigger value="aliases">Aliases</TabsTrigger>
           <TabsTrigger value="canonical">Canonical types</TabsTrigger>
+          <TabsTrigger value="defaults">Defaults</TabsTrigger>
         </TabsList>
         <TabsContent value="aliases" className="pt-4">
           <AliasesTab types={types} aliases={aliases} onChanged={onChanged} />
         </TabsContent>
         <TabsContent value="canonical" className="pt-4">
           <CanonicalTab types={types} onChanged={onChanged} />
+        </TabsContent>
+        <TabsContent value="defaults" className="pt-4">
+          <JobTypeDefaultsTab rows={defaults} />
         </TabsContent>
       </Tabs>
     </div>

@@ -75,6 +75,36 @@ export async function mapAlias(
   return {}
 }
 
+export async function updateJobTypeDefault(
+  id: string,
+  patch: {
+    labour_rate_source?: string
+    workshop_retail_rate?: number | null
+    markup_floor_pct?: number
+    markup_default_pct?: number
+    notes?: string | null
+  }
+): Promise<{ error?: string }> {
+  const supabase = await createClient()
+  const update: {
+    labour_rate_source?: string
+    workshop_retail_rate?: number | null
+    markup_floor_pct?: number
+    markup_default_pct?: number
+    notes?: string | null
+  } = {}
+  if (patch.labour_rate_source !== undefined) update.labour_rate_source = patch.labour_rate_source
+  if (patch.workshop_retail_rate !== undefined) update.workshop_retail_rate = patch.workshop_retail_rate
+  if (patch.markup_floor_pct !== undefined) update.markup_floor_pct = patch.markup_floor_pct
+  if (patch.markup_default_pct !== undefined) update.markup_default_pct = patch.markup_default_pct
+  if (patch.notes !== undefined) update.notes = patch.notes?.trim() || null
+
+  const { error } = await supabase.from("job_type_defaults").update(update).eq("id", id)
+  if (error) return { error: error.message }
+  revalidatePath(PATH)
+  return {}
+}
+
 /** Apply every suggestion above the confidence threshold to still-unmapped aliases. */
 export async function acceptAllSuggestions(
   minConfidence = 0.7
