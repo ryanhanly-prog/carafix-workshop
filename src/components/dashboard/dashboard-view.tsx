@@ -291,6 +291,15 @@ export function DashboardView() {
                               Day {p.day} of {p.total}
                             </span>
                           ) : null}
+                          <StatusBadge
+                            status={j.status}
+                            className="px-1.5 py-0 text-[10px] font-normal"
+                          />
+                          {j.status === "On Hold" && j.hold_reason ? (
+                            <span className="text-[10px] text-muted-foreground">
+                              · {j.hold_reason}
+                            </span>
+                          ) : null}
                         </>
                       }
                     />
