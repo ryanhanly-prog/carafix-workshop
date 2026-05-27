@@ -8,7 +8,6 @@ import { toast } from "sonner"
 
 import { MatchReasonBadge } from "@/components/quotes/match-reason-badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cloneIntoQuote } from "@/lib/actions/quotes"
 import { getBrowserClient } from "@/lib/supabase/browser"
 import { cn } from "@/lib/utils"
@@ -115,31 +114,25 @@ function SimilarCard({
   )
 }
 
-export function SimilarQuotesPanel({
-  quote,
-  onCloned,
-}: {
-  quote: SimilarQuoteContext
-  onCloned: () => void
-}) {
+// Query hook — lifted out so the editor can show the match count on the trigger
+// button while the drawer renders the list. A clean seam for swapping retrieval
+// strategies (e.g. embedding-based) later. Self-exclusion is handled in SQL via
+// p_exclude_quote_id; there is no score threshold — every row is shown.
+export function useSimilarQuotes(quote: SimilarQuoteContext | null) {
   const supabase = getBrowserClient()
-  const [cloning, startTransition] = React.useTransition()
-
-  const { data: similar = [], isLoading } = useQuery({
-    queryKey: ["similar", quote.id],
+  const query = useQuery({
+    queryKey: ["similar", quote?.id],
+    enabled: !!quote,
     queryFn: async () => {
       const looseRpc = supabase as unknown as SupabaseClient
-      // Self-exclusion happens in SQL via p_exclude_quote_id. No score threshold:
-      // every row the function returns is displayed — James judges quality from the
-      // score + match-reason badges.
       const { data, error } = await looseRpc.rpc("find_similar_quotes", {
-        p_organisation_id: quote.organisation_id,
-        p_canonical_job_type_id: quote.canonical_job_type_id,
-        p_vehicle_make: quote.vans?.make ?? null,
-        p_vehicle_model: quote.vans?.model ?? null,
-        p_description: quote.description ?? null,
-        p_damage_tags: quote.damage_tags ?? null,
-        p_exclude_quote_id: quote.id,
+        p_organisation_id: quote!.organisation_id,
+        p_canonical_job_type_id: quote!.canonical_job_type_id,
+        p_vehicle_make: quote!.vans?.make ?? null,
+        p_vehicle_model: quote!.vans?.model ?? null,
+        p_description: quote!.description ?? null,
+        p_damage_tags: quote!.damage_tags ?? null,
+        p_exclude_quote_id: quote!.id,
       })
       if (error) {
         toast.error("Could not load similar quotes", { description: error.message })
@@ -148,6 +141,22 @@ export function SimilarQuotesPanel({
       return (data as unknown as Similar[]) ?? []
     },
   })
+  return { similar: query.data ?? [], isLoading: query.isLoading }
+}
+
+// Presentational — receives the matches; lives inside the slide-over drawer.
+export function SimilarQuotesPanel({
+  similar,
+  isLoading,
+  quoteId,
+  onCloned,
+}: {
+  similar: Similar[]
+  isLoading: boolean
+  quoteId: string
+  onCloned: () => void
+}) {
+  const [cloning, startTransition] = React.useTransition()
 
   // "Best match" treatment only when the top result is meaningfully ahead.
   const showBest =
@@ -155,7 +164,7 @@ export function SimilarQuotesPanel({
 
   function clone(s: Similar) {
     startTransition(async () => {
-      const res = await cloneIntoQuote(quote.id, s.id, s.source)
+      const res = await cloneIntoQuote(quoteId, s.id, s.source)
       if (res.error) {
         toast.error("Clone failed", { description: res.error })
         return
@@ -165,30 +174,27 @@ export function SimilarQuotesPanel({
     })
   }
 
+  if (isLoading) {
+    return <p className="text-sm text-muted-foreground">Searching…</p>
+  }
+  if (similar.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No similar past quotes found. Start from scratch by adding line items below.
+      </p>
+    )
+  }
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Find similar past quotes</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {isLoading ? (
-          <p className="text-sm text-muted-foreground">Searching…</p>
-        ) : similar.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No similar past quotes found. Start from scratch by adding line items below.
-          </p>
-        ) : (
-          similar.map((s, i) => (
-            <SimilarCard
-              key={`${s.source}-${s.id}`}
-              s={s}
-              best={showBest && i === 0}
-              cloning={cloning}
-              onClone={() => clone(s)}
-            />
-          ))
-        )}
-      </CardContent>
-    </Card>
+    <div className="space-y-2">
+      {similar.map((s, i) => (
+        <SimilarCard
+          key={`${s.source}-${s.id}`}
+          s={s}
+          best={showBest && i === 0}
+          cloning={cloning}
+          onClone={() => clone(s)}
+        />
+      ))}
+    </div>
   )
 }

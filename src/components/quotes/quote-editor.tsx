@@ -20,6 +20,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import {
   Table,
   TableBody,
   TableCell,
@@ -29,7 +36,7 @@ import {
 } from "@/components/ui/table"
 import { formatDate } from "@/lib/format"
 import { getBrowserClient } from "@/lib/supabase/browser"
-import { SimilarQuotesPanel } from "@/components/quotes/similar-quotes-panel"
+import { SimilarQuotesPanel, useSimilarQuotes } from "@/components/quotes/similar-quotes-panel"
 import {
   addLineItem,
   deleteLineItem,
@@ -265,6 +272,12 @@ export function QuoteEditor({
     qc.invalidateQueries({ queryKey: ["qli", quote.id] })
   }, [qc, quote.id])
 
+  const { similar, isLoading: similarLoading } = useSimilarQuotes(header)
+  // Auto-open the drawer for a fresh draft (zero lines); stays closed once cloned/dismissed.
+  const [drawerOpen, setDrawerOpen] = React.useState(
+    () => !readOnly && initialLines.length === 0
+  )
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -287,6 +300,9 @@ export function QuoteEditor({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setDrawerOpen(true)}>
+            Similar quotes ({similar.length})
+          </Button>
           {readOnly ? (
             <Button variant="outline" asChild>
               <Link href={`/quotes/${quote.id}/edit`}>Edit</Link>
@@ -343,14 +359,34 @@ export function QuoteEditor({
         />
       )}
 
-      {!readOnly && <SimilarQuotesPanel quote={header} onCloned={refresh} />}
-
       <TotalsFooter
         header={header}
         readOnly={readOnly}
         onChanged={refresh}
         routerRefresh={() => router.refresh()}
       />
+
+      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
+        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Similar past quotes</SheetTitle>
+            <SheetDescription className="sr-only">
+              Past quotes ranked by similarity; clone one to populate line items.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-6">
+            <SimilarQuotesPanel
+              similar={similar}
+              isLoading={similarLoading}
+              quoteId={quote.id}
+              onCloned={() => {
+                refresh()
+                setDrawerOpen(false)
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   )
 }
