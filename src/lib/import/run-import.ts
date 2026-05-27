@@ -571,6 +571,13 @@ export async function runImport(
     stats.job_type_aliases.discovered = jobTypeCounts.size
   })
 
+  // Mirror imported caravans into the live `vans` table (customers + historical
+  // vehicles are written above). Refreshes non-manually-edited rows; idempotent.
+  await safe("sync_imported_vans", dbErrors, async () => {
+    const { error } = await db.rpc("sync_imported_vans", { p_org: org })
+    if (error) throw error
+  })
+
   const entityStats = [
     stats.customers,
     stats.suppliers,
