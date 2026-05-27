@@ -146,10 +146,11 @@ async function upsertBatches(
   rows: Record<string, unknown>[],
   onConflict: string,
   stat: EntityStat,
-  dbErrors: string[]
+  dbErrors: string[],
+  ignoreDuplicates = false
 ) {
   for (const c of chunk(rows, BATCH)) {
-    const { error } = await db.from(table).upsert(c, { onConflict, ignoreDuplicates: false })
+    const { error } = await db.from(table).upsert(c, { onConflict, ignoreDuplicates })
     if (error) {
       stat.failed += c.length
       stat.inserted = Math.max(0, stat.inserted - c.length) // it didn't actually land
@@ -251,7 +252,18 @@ export async function runImport(
       return { name, organisation_id: org }
     })
     stats.suppliers = { inserted: sInserted, updated: sUpdated, failed: 0 }
-    await upsertBatches(db, "suppliers", supplierPayload, "organisation_id,name", stats.suppliers, dbErrors)
+    // ignoreDuplicates: existing suppliers are left entirely untouched so manually
+    // entered contact details (phone/email/etc.) survive re-imports. We only have
+    // the name from Mechanic Desk anyway, so there is nothing to update.
+    await upsertBatches(
+      db,
+      "suppliers",
+      supplierPayload,
+      "organisation_id,name",
+      stats.suppliers,
+      dbErrors,
+      true
+    )
 
     // Stock items.
     const existingStock = await fetchExistingKeys(db, "stock_items", org, "external_id")

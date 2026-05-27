@@ -1331,31 +1331,49 @@ export type Database = {
       }
       suppliers: {
         Row: {
-          contact_email: string | null
-          contact_phone: string | null
+          account_number: string | null
+          address: string | null
           created_at: string | null
+          email: string | null
           id: string
           name: string
           notes: string | null
           organisation_id: string
+          payment_terms: string | null
+          phone: string | null
+          primary_contact_name: string | null
+          updated_at: string | null
+          website: string | null
         }
         Insert: {
-          contact_email?: string | null
-          contact_phone?: string | null
+          account_number?: string | null
+          address?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           name: string
           notes?: string | null
           organisation_id: string
+          payment_terms?: string | null
+          phone?: string | null
+          primary_contact_name?: string | null
+          updated_at?: string | null
+          website?: string | null
         }
         Update: {
-          contact_email?: string | null
-          contact_phone?: string | null
+          account_number?: string | null
+          address?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           name?: string
           notes?: string | null
           organisation_id?: string
+          payment_terms?: string | null
+          phone?: string | null
+          primary_contact_name?: string | null
+          updated_at?: string | null
+          website?: string | null
         }
         Relationships: [
           {
