@@ -15,6 +15,9 @@ export function MatchReasonBadge({ reason }: { reason: string }) {
   } else if (reason === "description_match") {
     label = "description match"
     tone = "strong"
+  } else if (reason.startsWith("job_type:")) {
+    label = "job type: " + reason.slice("job_type:".length)
+    tone = "green"
   } else if (reason === "job_type") {
     label = "job type"
     tone = "green"

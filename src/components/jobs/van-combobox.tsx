@@ -28,10 +28,12 @@ export type SelectedVan = { id: string; label: string }
 function vanLabel(v: {
   make: string | null
   model: string | null
+  year?: number | null
   rego: string | null
 }) {
   const base = [v.make, v.model].filter(Boolean).join(" ") || "Van"
-  return v.rego ? `${base} · ${v.rego}` : base
+  // Show year + rego so similar vans can be told apart; em-dash for missing values.
+  return `${base} · ${v.year ?? "—"} · ${v.rego ?? "—"}`
 }
 
 export function VanCombobox({
@@ -71,7 +73,7 @@ export function VanCombobox({
         toast.error("Could not add van", { description: res.error })
         return
       }
-      onSelect({ id: res.id, label: vanLabel({ make, model, rego }) })
+      onSelect({ id: res.id, label: vanLabel({ make, model, year: year ? Number(year) : null, rego }) })
       setCreating(false)
       setMake("")
       setModel("")
