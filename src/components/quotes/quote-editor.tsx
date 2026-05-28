@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowDown, ArrowUp, Loader2, Plus, Trash2 } from "lucide-react"
+import { ArrowDown, ArrowUp, ExternalLink, Loader2, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Badge } from "@/components/ui/badge"
@@ -360,6 +360,29 @@ export function QuoteEditor({
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setDrawerOpen(true)}>
             Similar quotes ({similar.length})
+          </Button>
+          {/* Output views — open in a new tab so the editor stays in place
+              behind the document preview. Both URLs live in the (print) route
+              group; auth is enforced by proxy.ts. */}
+          <Button variant="outline" asChild>
+            <Link
+              href={`/quotes/${quote.id}/customer`}
+              target="_blank"
+              rel="noopener"
+            >
+              Customer view
+              <ExternalLink className="size-3.5" />
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
+            <Link
+              href={`/quotes/${quote.id}/workshop`}
+              target="_blank"
+              rel="noopener"
+            >
+              Workshop view
+              <ExternalLink className="size-3.5" />
+            </Link>
           </Button>
           {readOnly ? (
             <Button variant="outline" asChild>
