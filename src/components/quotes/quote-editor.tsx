@@ -113,6 +113,111 @@ function isSectionDivider(l: LineItem): boolean {
   )
 }
 
+// ----------------------------- anchors -----------------------------
+// One row per part line returned by the get_quote_anchors RPC (migration
+// 0030). The function resolves a SKU per line, joins sku_price_stats, and
+// computes below_typical_pct + a quote-level allow_nudge boolean (false on
+// insurance/warranty). UI never re-derives the gating.
+type QuoteAnchor = {
+  line_id: string
+  resolved_stock_number: string | null
+  resolution_source: string | null
+  uses: number | null
+  median_cost: number | null
+  median_price: number | null
+  median_markup_pct: number | null
+  last_price: number | null
+  last_cost: number | null
+  last_used_date: string | null
+  below_typical_pct: number | null
+  allow_nudge: boolean
+}
+
+function useQuoteAnchors(quoteId: string) {
+  const supabase = getBrowserClient()
+  return useQuery({
+    queryKey: ["quote-anchors", quoteId],
+    queryFn: async () => {
+      const { data } = await supabase.rpc("get_quote_anchors", { p_quote_id: quoteId })
+      const map = new Map<string, QuoteAnchor>()
+      for (const row of (data as QuoteAnchor[] | null) ?? []) {
+        map.set(row.line_id, row)
+      }
+      return map
+    },
+    staleTime: 30 * 1000,
+  })
+}
+
+// Secondary text strip beneath the Description input on a part line, when
+// the SKU resolved AND was found in sku_price_stats with uses >= 3 (the
+// validation guard lives in the SQL — by the time median_price is non-null
+// here we know the sample is large enough). Hover/focus opens a Tooltip
+// with the full detail. Lines without a resolved/known SKU render nothing —
+// no placeholder, no error, per spec.
+function AnchorStrip({ anchor }: { anchor: QuoteAnchor | undefined }) {
+  if (!anchor || anchor.median_price == null) return null
+  const price = Number(anchor.median_price)
+  const markup =
+    anchor.median_markup_pct == null ? null : Number(anchor.median_markup_pct)
+  const uses = anchor.uses ?? 0
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="mt-1 cursor-help text-[11px] tabular-nums text-muted-foreground">
+          typical {formatMoney(price)}
+          {markup != null ? ` · markup ${markup.toFixed(0)}%` : ""}
+          {` · ${uses.toLocaleString()} uses`}
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" className="max-w-none">
+        <div className="space-y-1 text-xs">
+          {anchor.resolved_stock_number && (
+            <div className="font-semibold tabular-nums">
+              SKU {anchor.resolved_stock_number}
+            </div>
+          )}
+          <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-0.5 tabular-nums">
+            <span className="opacity-70">Typical sell</span>
+            <span className="text-right">{formatMoney(price)}</span>
+            {anchor.median_cost != null && (
+              <>
+                <span className="opacity-70">Typical cost</span>
+                <span className="text-right">
+                  {formatMoney(Number(anchor.median_cost))}
+                </span>
+              </>
+            )}
+            {markup != null && (
+              <>
+                <span className="opacity-70">Typical markup</span>
+                <span className="text-right">{markup.toFixed(1)}%</span>
+              </>
+            )}
+            {anchor.last_price != null && (
+              <>
+                <span className="opacity-70">Last price</span>
+                <span className="text-right">
+                  {formatMoney(Number(anchor.last_price))}
+                </span>
+              </>
+            )}
+            {anchor.last_used_date && (
+              <>
+                <span className="opacity-70">Last used</span>
+                <span className="text-right">{formatDate(anchor.last_used_date)}</span>
+              </>
+            )}
+          </div>
+          <div className="pt-1 text-[10px] opacity-70">
+            {uses.toLocaleString()} uses across the corpus
+          </div>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
 // Per-line margin readout under the Line total cell. Hidden on labour
 // (labour cost basis is the rate question, deferred) and dividers. The
 // percentage is the primary number; hover reveals the dollar value. 11px
@@ -149,6 +254,7 @@ function LineMarginSecondary({ line }: { line: LineItem }) {
 // ----------------------------- editable row -----------------------------
 function LineRow({
   line,
+  anchor,
   quoteId,
   readOnly,
   onChanged,
@@ -156,6 +262,10 @@ function LineRow({
   onAutoFocused,
 }: {
   line: LineItem
+  /** Precomputed anchor for this line (one row from get_quote_anchors),
+   * undefined when the line has no resolvable SKU or the quote isn't a part
+   * line. The function only returns part lines. */
+  anchor?: QuoteAnchor
   quoteId: string
   readOnly: boolean
   onChanged: () => void
@@ -244,7 +354,10 @@ function LineRow({
     return (
       <TableRow>
         <TableCell>{line.line_order}</TableCell>
-        <TableCell>{line.description}</TableCell>
+        <TableCell>
+          <div>{line.description}</div>
+          <AnchorStrip anchor={anchor} />
+        </TableCell>
         <TableCell className="capitalize text-muted-foreground">{line.line_type}</TableCell>
         <TableCell className="text-right">{line.quantity}</TableCell>
         <TableCell>{line.unit ?? (defaultUnit(line.line_type) || "—")}</TableCell>
@@ -269,6 +382,7 @@ function LineRow({
           onChange={(e) => setDraft({ ...draft, description: e.target.value })}
           onBlur={() => draft.description !== line.description && save({ description: draft.description })}
         />
+        <AnchorStrip anchor={anchor} />
       </TableCell>
       <TableCell>
         <Select
@@ -389,9 +503,15 @@ export function QuoteEditor({
     },
   })
 
+  const { data: anchors } = useQuoteAnchors(quote.id)
+
   const refresh = React.useCallback(() => {
     qc.invalidateQueries({ queryKey: ["quote", quote.id] })
     qc.invalidateQueries({ queryKey: ["qli", quote.id] })
+    // Editing a line can change its description (→ resolved SKU) or its
+    // unit_price (→ below_typical_pct). Always re-fetch anchors after a
+    // line change.
+    qc.invalidateQueries({ queryKey: ["quote-anchors", quote.id] })
   }, [qc, quote.id])
 
   // When the user clicks "Add section heading", the newly-inserted divider's
@@ -503,6 +623,7 @@ export function QuoteEditor({
                   <LineRow
                     key={l.id}
                     line={l}
+                    anchor={anchors?.get(l.id)}
                     quoteId={quote.id}
                     readOnly={readOnly}
                     onChanged={refresh}
