@@ -1,5 +1,5 @@
 import { formatDate, formatMoney } from "@/lib/format"
-import type { QuoteOutputModel } from "@/lib/quote-output"
+import { isPlaceholderDividerLabel, type QuoteOutputModel } from "@/lib/quote-output"
 
 /**
  * Customer-facing quote document, HTML version. Mirrors the PDF document
@@ -35,9 +35,9 @@ export function CustomerDocHtml({ model }: { model: QuoteOutputModel }) {
           </h2>
           <p className="mt-1 text-base font-semibold">{quote.quoteNumber ?? "—"}</p>
           <p className="text-xs text-neutral-600">Issued {formatDate(quote.dateIssued)}</p>
-          <p className="text-xs capitalize text-neutral-600">
-            Status: {quote.status.replace(/_/g, " ")}
-          </p>
+          {/* Internal status (draft/sent/accepted/...) is deliberately hidden
+              on the customer doc — it reads as unfinished and undercuts the
+              first impression. Workshop doc still shows it. */}
         </div>
         <div>
           <h2 className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">
@@ -100,14 +100,21 @@ export function CustomerDocHtml({ model }: { model: QuoteOutputModel }) {
             ) : (
               lines.map((l, i) =>
                 l.isDivider ? (
-                  <tr key={i}>
-                    <td
-                      colSpan={5}
-                      className="border-b border-neutral-200 pb-2 pt-5 text-xs font-semibold uppercase tracking-wide text-neutral-700"
-                    >
-                      {l.description}
-                    </td>
-                  </tr>
+                  // Placeholder dividers (empty / "new section" / "description")
+                  // leak in via clone of MD historical quotes and from the old
+                  // add-section default. Hide them on the customer doc — the
+                  // line items below still flow in order. Workshop doc shows
+                  // dividers as-is regardless of label.
+                  isPlaceholderDividerLabel(l.description) ? null : (
+                    <tr key={i}>
+                      <td
+                        colSpan={5}
+                        className="border-b border-neutral-200 pb-2 pt-5 text-xs font-semibold uppercase tracking-wide text-neutral-700"
+                      >
+                        {l.description}
+                      </td>
+                    </tr>
+                  )
                 ) : (
                   <tr key={i} className="border-b border-neutral-100 align-top">
                     <td className="py-2 text-neutral-500">{l.displayNumber}</td>

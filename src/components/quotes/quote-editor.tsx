@@ -113,16 +113,33 @@ function LineRow({
   quoteId,
   readOnly,
   onChanged,
+  autoFocus = false,
+  onAutoFocused,
 }: {
   line: LineItem
   quoteId: string
   readOnly: boolean
   onChanged: () => void
+  /** True when this row was just created via "Add section heading" and
+   * should drop straight into edit mode. Set by QuoteEditor for one render
+   * after the post-add refetch lands. */
+  autoFocus?: boolean
+  /** Called once the autofocus has been consumed so the parent can clear
+   * its flag and not refocus on subsequent renders. */
+  onAutoFocused?: () => void
 }) {
   const [pending, startTransition] = React.useTransition()
   const [draft, setDraft] = React.useState(line)
   React.useEffect(() => setDraft(line), [line])
   const lineQuoteId = quoteId
+  const dividerInputRef = React.useRef<HTMLInputElement | null>(null)
+  React.useEffect(() => {
+    if (autoFocus && dividerInputRef.current) {
+      dividerInputRef.current.focus()
+      dividerInputRef.current.select()
+      onAutoFocused?.()
+    }
+  }, [autoFocus, onAutoFocused])
 
   function save(patch: Partial<LineItem>) {
     startTransition(async () => {
@@ -151,8 +168,10 @@ function LineRow({
             </span>
           ) : (
             <Input
+              ref={dividerInputRef}
               className="h-8 border-0 bg-transparent text-sm font-semibold uppercase tracking-wide shadow-none focus-visible:ring-1"
               value={draft.description}
+              placeholder="Section name"
               onChange={(e) => setDraft({ ...draft, description: e.target.value })}
               onBlur={() =>
                 draft.description !== line.description && save({ description: draft.description })
@@ -330,6 +349,19 @@ export function QuoteEditor({
     qc.invalidateQueries({ queryKey: ["qli", quote.id] })
   }, [qc, quote.id])
 
+  // When the user clicks "Add section heading", the newly-inserted divider's
+  // id is bubbled up here so the matching LineRow can autofocus its label
+  // input on the next render (i.e. drop the user straight into edit mode).
+  // Cleared by the row once consumed.
+  const [autoFocusLineId, setAutoFocusLineId] = React.useState<string | null>(null)
+  const handleAdded = React.useCallback(
+    (addedId?: string) => {
+      refresh()
+      if (addedId) setAutoFocusLineId(addedId)
+    },
+    [refresh],
+  )
+
   const { similar, isLoading: similarLoading } = useSimilarQuotes(header)
   // Auto-open the drawer for a fresh draft (zero lines); stays closed once cloned/dismissed.
   const [drawerOpen, setDrawerOpen] = React.useState(
@@ -423,7 +455,15 @@ export function QuoteEditor({
                 </TableRow>
               ) : (
                 lines.map((l) => (
-                  <LineRow key={l.id} line={l} quoteId={quote.id} readOnly={readOnly} onChanged={refresh} />
+                  <LineRow
+                    key={l.id}
+                    line={l}
+                    quoteId={quote.id}
+                    readOnly={readOnly}
+                    onChanged={refresh}
+                    autoFocus={l.id === autoFocusLineId}
+                    onAutoFocused={() => setAutoFocusLineId(null)}
+                  />
                 ))
               )}
             </TableBody>
@@ -436,7 +476,7 @@ export function QuoteEditor({
           quoteId={quote.id}
           markupDefault={markupDefault}
           labourRate={labourRate}
-          onAdded={refresh}
+          onAdded={handleAdded}
         />
       )}
 
@@ -550,7 +590,10 @@ function AddLineItem({
   quoteId: string
   markupDefault: number
   labourRate: number | null
-  onAdded: () => void
+  /** The id of the row just added is passed back when it's a section heading,
+   * so the parent can autofocus it (drop the user into edit mode). For plain
+   * line items the id is omitted — they don't need focus handoff. */
+  onAdded: (addedId?: string) => void
 }) {
   const [lineType, setLineType] = React.useState<LineType>("part")
   const [description, setDescription] = React.useState("")
@@ -572,9 +615,14 @@ function AddLineItem({
 
   function addHeading() {
     startTransition(async () => {
+      // 4b.1: insert with empty label and drop the user into edit mode (the
+      // parent autofocuses the row that comes back with this id). The old
+      // default of "New section" used to leak onto customer documents — the
+      // output layer now strips placeholder labels, but the root cause is
+      // killed here for all new quotes going forward.
       const res = await addLineItem(quoteId, {
         line_type: "other",
-        description: "New section",
+        description: "",
         quantity: 0,
         unit: null,
         unit_cost: 0,
@@ -585,7 +633,7 @@ function AddLineItem({
         return
       }
       toast.success("Section heading added")
-      onAdded()
+      onAdded(res.id)
     })
   }
 

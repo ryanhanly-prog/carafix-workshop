@@ -1,7 +1,7 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer"
 
 import { formatDate, formatMoney } from "@/lib/format"
-import type { QuoteOutputModel } from "@/lib/quote-output"
+import { isPlaceholderDividerLabel, type QuoteOutputModel } from "@/lib/quote-output"
 
 // react-pdf primitives are NOT DOM elements; this is a parallel render tree
 // that consumes the same QuoteOutputModel as customer-doc-html.tsx so the
@@ -175,9 +175,7 @@ export function CustomerDocPdf({ model }: { model: QuoteOutputModel }) {
             <Text style={s.sectionLabel}>QUOTE</Text>
             <Text style={s.metaValueLg}>{quote.quoteNumber ?? "—"}</Text>
             <Text style={s.metaSub}>Issued {formatDate(quote.dateIssued)}</Text>
-            <Text style={s.metaSub}>
-              Status: {quote.status.replace(/_/g, " ")}
-            </Text>
+            {/* Internal status hidden on the customer doc — see HTML twin. */}
           </View>
           <View style={s.metaCol}>
             <Text style={s.sectionLabel}>BILL TO</Text>
@@ -224,9 +222,12 @@ export function CustomerDocPdf({ model }: { model: QuoteOutputModel }) {
         ) : (
           lines.map((l, i) =>
             l.isDivider ? (
-              <View key={i} style={s.divider}>
-                <Text style={s.dividerText}>{l.description}</Text>
-              </View>
+              // Placeholder dividers hidden on customer doc — see HTML twin.
+              isPlaceholderDividerLabel(l.description) ? null : (
+                <View key={i} style={s.divider}>
+                  <Text style={s.dividerText}>{l.description}</Text>
+                </View>
+              )
             ) : (
               <View key={i} style={s.tr} wrap={false}>
                 <Text style={[s.colNum, s.tdNum]}>{l.displayNumber}</Text>
