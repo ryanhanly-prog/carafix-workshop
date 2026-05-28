@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -2025,6 +2025,53 @@ export type Database = {
         }
         Relationships: []
       }
+      sku_price_stats: {
+        Row: {
+          last_cost: number | null
+          last_price: number
+          last_used_date: string
+          median_cost: number | null
+          median_markup_pct: number | null
+          median_price: number
+          organisation_id: string
+          refreshed_at: string
+          stock_number: string
+          uses: number
+        }
+        Insert: {
+          last_cost?: number | null
+          last_price: number
+          last_used_date: string
+          median_cost?: number | null
+          median_markup_pct?: number | null
+          median_price: number
+          organisation_id: string
+          refreshed_at?: string
+          stock_number: string
+          uses: number
+        }
+        Update: {
+          last_cost?: number | null
+          last_price?: number
+          last_used_date?: string
+          median_cost?: number | null
+          median_markup_pct?: number | null
+          median_price?: number
+          organisation_id?: string
+          refreshed_at?: string
+          stock_number?: string
+          uses?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sku_price_stats_organisation_id_fkey"
+            columns: ["organisation_id"]
+            isOneToOne: false
+            referencedRelation: "organisations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stock_item_suppliers: {
         Row: {
           is_primary: boolean | null
@@ -2717,6 +2764,26 @@ export type Database = {
           vehicle: string
         }[]
       }
+      get_quote_anchors: {
+        Args: { p_quote_id: string }
+        Returns: {
+          allow_nudge: boolean
+          below_typical_pct: number
+          last_cost: number
+          last_price: number
+          last_used_date: string
+          line_id: string
+          line_order: number
+          line_type: string
+          median_cost: number
+          median_markup_pct: number
+          median_price: number
+          quote_id: string
+          resolution_source: string
+          resolved_stock_number: string
+          uses: number
+        }[]
+      }
       infer_damage_tags: { Args: { p_tokens: string[] }; Returns: string[] }
       is_controller: { Args: never; Returns: boolean }
       jaccard_arr: { Args: { a: string[]; b: string[] }; Returns: number }
@@ -2724,6 +2791,7 @@ export type Database = {
         Args: { p_quote_id: string }
         Returns: undefined
       }
+      refresh_sku_price_stats: { Args: { p_org?: string }; Returns: number }
       silent_save_part: {
         Args: {
           p_description: string
