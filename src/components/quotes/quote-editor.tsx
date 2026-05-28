@@ -34,7 +34,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { formatDate, formatMoney } from "@/lib/format"
+import { marginFor, totalMargin } from "@/lib/margin"
 import { getBrowserClient } from "@/lib/supabase/browser"
 import { SimilarQuotesPanel, useSimilarQuotes } from "@/components/quotes/similar-quotes-panel"
 import {
@@ -104,6 +110,39 @@ function isSectionDivider(l: LineItem): boolean {
     (l.quantity ?? 0) === 0 &&
     (l.unit_cost ?? 0) === 0 &&
     (l.line_total ?? 0) === 0
+  )
+}
+
+// Per-line margin readout under the Line total cell. Hidden on labour
+// (labour cost basis is the rate question, deferred) and dividers. The
+// percentage is the primary number; hover reveals the dollar value. 11px
+// muted secondary matches the editor's restraint elsewhere — anchors and
+// margins are marginalia, not headline figures.
+function LineMarginSecondary({ line }: { line: LineItem }) {
+  const divider = isSectionDivider(line)
+  if (divider || line.line_type === "labour") return null
+  const { marginDollars, marginPct } = marginFor({
+    line_type: line.line_type,
+    quantity: line.quantity,
+    unit_cost: line.unit_cost,
+    unit_price: line.unit_price,
+    line_total: line.line_total,
+    isDivider: divider,
+  })
+  if (marginPct == null) {
+    // Line has no revenue yet (e.g. fresh empty line) — render nothing
+    // rather than a noisy em dash.
+    return null
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="cursor-default text-[11px] font-normal tabular-nums text-muted-foreground">
+          {marginPct.toFixed(1)}% margin
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="left">{formatMoney(marginDollars)} margin</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -212,7 +251,10 @@ function LineRow({
         <TableCell className="text-right">{formatMoney(line.unit_cost)}</TableCell>
         <TableCell className="text-right">{line.markup_pct ?? 0}%</TableCell>
         <TableCell className="text-right">{formatMoney(line.unit_price)}</TableCell>
-        <TableCell className="text-right font-medium">{formatMoney(line.line_total)}</TableCell>
+        <TableCell className="text-right font-medium">
+          <div className="tabular-nums">{formatMoney(line.line_total)}</div>
+          <LineMarginSecondary line={line} />
+        </TableCell>
       </TableRow>
     )
   }
@@ -281,7 +323,10 @@ function LineRow({
         />
       </TableCell>
       <TableCell className="text-right text-muted-foreground">{formatMoney(line.unit_price)}</TableCell>
-      <TableCell className="text-right font-medium">{formatMoney(line.line_total)}</TableCell>
+      <TableCell className="text-right font-medium">
+        <div className="tabular-nums">{formatMoney(line.line_total)}</div>
+        <LineMarginSecondary line={line} />
+      </TableCell>
       <TableCell>
         <div className="flex items-center gap-0.5">
           <Button variant="ghost" size="icon" className="size-7" onClick={() => startTransition(async () => { await moveLineItem(line.id, lineQuoteId, "up"); onChanged() })}>
@@ -482,6 +527,7 @@ export function QuoteEditor({
 
       <TotalsFooter
         header={header}
+        lines={lines}
         readOnly={readOnly}
         onChanged={refresh}
         routerRefresh={() => router.refresh()}
@@ -524,16 +570,39 @@ function FooterStat({ label, value }: { label: string; value: string }) {
 
 function TotalsFooter({
   header,
+  lines,
   readOnly,
   onChanged,
   routerRefresh,
 }: {
   header: QuoteHeader
+  lines: LineItem[]
   readOnly: boolean
   onChanged: () => void
   routerRefresh: () => void
 }) {
   const [pending, startTransition] = React.useTransition()
+  // Total margin is computed client-side from the lines we already have —
+  // mirrors the workshop PDF's accumulator so the two figures always agree.
+  // Q-100001 produces $1,695.30 / 63.0% (asserted via MCP, self-test #7).
+  const margin = React.useMemo(
+    () =>
+      totalMargin(
+        lines.map((l) => ({
+          line_type: l.line_type,
+          quantity: l.quantity,
+          unit_cost: l.unit_cost,
+          unit_price: l.unit_price,
+          line_total: l.line_total,
+          isDivider: isSectionDivider(l),
+        })),
+      ),
+    [lines],
+  )
+  const marginValue =
+    margin.marginPct == null
+      ? formatMoney(margin.marginDollars)
+      : `${formatMoney(margin.marginDollars)} · ${margin.marginPct.toFixed(1)}%`
   return (
     // Sticky to the bottom of the scroll area; -mx-6 spans the main's padding.
     <div className="sticky bottom-0 z-20 -mx-6 border-t bg-background px-6 py-3">
@@ -542,6 +611,7 @@ function TotalsFooter({
         <FooterStat label="Labour" value={formatMoney(header.subtotal_labour)} />
         <FooterStat label="Consumables" value={formatMoney(header.subtotal_consumables)} />
         <FooterStat label="Other" value={formatMoney(header.subtotal_other)} />
+        <FooterStat label="Margin" value={marginValue} />
 
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Total</span>
