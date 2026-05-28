@@ -101,6 +101,22 @@ function isSectionDivider(l: {
   )
 }
 
+/**
+ * Customer-facing only: a divider label counts as a placeholder (and is hidden
+ * on the customer doc) when trimmed-empty or matching a known default string.
+ * The denylist is intentionally tiny: "new section" is the literal default the
+ * editor's "Add section heading" button used to insert (4b.1 changes it to ""
+ * going forward, but historical rows still carry it); "description" is the
+ * Mechanic Desk historical default that leaks in through James's clone-driven
+ * workflow. Workshop renderers do NOT call this — they show dividers as-is.
+ */
+export function isPlaceholderDividerLabel(label: string | null): boolean {
+  const trimmed = (label ?? "").trim()
+  if (trimmed === "") return true
+  const lc = trimmed.toLowerCase()
+  return lc === "new section" || lc === "description"
+}
+
 function labourSuffix(l: {
   line_type: string | null
   quantity: number | null
