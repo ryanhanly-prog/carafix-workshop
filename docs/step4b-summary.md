@@ -121,3 +121,84 @@ have ~30× headroom before the budget bites.
 - Email-the-PDF / e-signature / quote versioning — all per the prompt.
 - Performance behaviour at 50+ line quotes — unmeasured; revisit if James
   builds anything that large.
+
+---
+
+## 4b.1 — Pre-merge polish (three commits on the same branch)
+
+On visual review of the rendered customer PDF, three issues were caught that
+would have undercut the customer's first impression. Fixed in three small
+commits on `step-4b-quote-output` before merge; no new features.
+
+1. **Customer doc no longer prints internal status.** "Status: draft" /
+   "sent" / etc. was rendering in the QUOTE block of the customer view and
+   customer PDF. Removed from both customer renderers; workshop docs
+   unchanged (status is wanted there). James can still preview a draft
+   customer PDF; the fix is purely "don't print the word."
+2. **Placeholder divider labels suppressed on the customer doc.** Section
+   dividers carrying a default placeholder label — empty, `"new section"`
+   (the editor's old default), or `"description"` (the MD historical default
+   that rides along on every cloned quote) — were appearing on the customer
+   doc as a grey lowercase word floating between line items, reading as a
+   form field that failed to fill in. New helper
+   `isPlaceholderDividerLabel(label)` in `quote-output.ts` is called inline
+   by both customer renderers; placeholder rows are omitted entirely. Line
+   items below still flow in order with their original display numbers.
+   Workshop docs deliberately keep showing all dividers including
+   placeholders — internal, James knows what they are.
+3. **"Add section heading" no longer inserts a literal default label.** Was
+   inserting `"New section"` as the divider's stored description, which
+   leaked through to the customer doc whenever James didn't overwrite it.
+   New behaviour: inserts an empty string and autofocuses the divider row's
+   inline input on the next render, dropping James straight into edit mode.
+   The input also gains a `placeholder="Section name"` so an empty stored
+   label shows a prompt rather than a blank gap. **Historical rows in the DB
+   are left untouched** — fix 2 above already hides their placeholder
+   labels on the customer doc.
+
+### Self-test extension
+
+`scripts/step4b-selftest.ts` now runs **70 / 70** checks (35 original + 35
+new for 4b.1). The new section asserts observable outcomes by rendering the
+customer/workshop HTML via `react-dom/server` and walking the customer/
+workshop PDF JSX tree directly (the binary PDF stream is flate-compressed
+and not greppable, so the script invokes the PDF components as plain
+functions to inspect their Text children).
+
+- Q-100001 customer HTML emits zero divider `<tr>`s (both placeholders
+  suppressed), still renders all 7 line items in display order, still
+  shows total `$2,691.50`, and contains no `"Status:"` text.
+- Q-100001 customer PDF tree contains no `"Status:"` and no Text leaf
+  matching the dividers' stored labels (exact-leaf-match — robust against
+  unrelated text containing the same word).
+- Q-100001 workshop HTML still renders both placeholder dividers as `<td>`
+  rows with the divider class signature and still shows the status word.
+- Q-100001 workshop PDF tree still emits Text leaves for each divider's
+  stored label.
+- **Real-label fixture**: temp quote with one divider `"Roof works"` + one
+  line item. Customer HTML renders the heading; customer PDF tree contains
+  the leaf. Fixture cleaned up in `finally`.
+- **Empty-divider editor default fixture**: temp quote with a divider
+  inserted exactly as the new `addHeading()` does (`description=""`,
+  zeros). Confirms the empty string persists in the DB column (NOT NULL but
+  allows empty), the view model classifies it as a placeholder, the
+  customer HTML omits the row, an `UPDATE` to a real label
+  (`"Engine works"`) persists, and the customer HTML then renders the
+  renamed divider as a heading.
+
+### What the self-test deliberately doesn't cover
+
+The autofocus / drop-into-edit-mode behaviour for a freshly-created divider
+is observable only with a browser harness. The script asserts the data
+shape (empty stored label → classified as placeholder → suppressed on
+customer doc → re-classified after rename) but not the focus call itself.
+A Playwright pass was out of scope for "small surgical polish"; if James
+adds end-to-end testing later, a one-liner click on "Add section heading"
++ assert `document.activeElement.placeholder === "Section name"` covers it.
+
+### Re-render performance after 4b.1
+
+Render timings are unchanged within noise (the new conditional is a
+trimmed-string comparison against a 2-entry denylist, executed at most
+once per divider). Q-100001 customer PDF: ~140 ms; workshop PDF: ~120 ms.
+Q-100004 customer/workshop PDF: <100 ms each. All under the 2 s target.

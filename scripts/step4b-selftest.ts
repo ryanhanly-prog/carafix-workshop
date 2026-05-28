@@ -10,12 +10,16 @@
 import { readFileSync } from "node:fs"
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js"
-import { createElement, type ReactElement } from "react"
+import { createElement, type JSXElementConstructor, type ReactElement } from "react"
+import { renderToStaticMarkup } from "react-dom/server"
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer"
 
 import type { Database } from "@/lib/database.types"
-import { getQuoteForOutput, type QuoteOutputModel } from "@/lib/quote-output"
+import { formatMoney } from "@/lib/format"
+import { getQuoteForOutput, isPlaceholderDividerLabel, type QuoteOutputModel } from "@/lib/quote-output"
+import { CustomerDocHtml } from "@/components/quotes/output/customer-doc-html"
 import { CustomerDocPdf } from "@/components/quotes/output/customer-doc-pdf"
+import { WorkshopDocHtml } from "@/components/quotes/output/workshop-doc-html"
 import { WorkshopDocPdf } from "@/components/quotes/output/workshop-doc-pdf"
 
 const CARAFIX_ORG = "00000000-0000-0000-0000-000000000002"
@@ -59,6 +63,78 @@ async function renderWorkshop(model: QuoteOutputModel): Promise<{ ms: number; by
 
 function pdfMagicOk(b: Buffer): boolean {
   return b.subarray(0, 5).toString("ascii") === "%PDF-"
+}
+
+// react-pdf compresses content streams, so a rendered PDF buffer is not
+// greppable for visible text. Instead we walk the JSX tree the component
+// returns when called as a plain function — the components are pure (no
+// hooks), so invoking them outside a React renderer is safe. This proves
+// the SEMANTIC content (which Text nodes get emitted) without touching
+// pdfkit's binary encoding.
+type AnyNode = unknown
+function pdfTreeContains(node: AnyNode, needle: string): boolean {
+  if (node == null || typeof node === "boolean") return false
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node).includes(needle)
+  }
+  if (Array.isArray(node)) return node.some((c) => pdfTreeContains(c, needle))
+  if (typeof node === "object" && node !== null && "props" in node) {
+    const children = (node as { props?: { children?: AnyNode } }).props?.children
+    if (children !== undefined) return pdfTreeContains(children, needle)
+  }
+  return false
+}
+/**
+ * Count text-LEAF nodes (string/number children of a Text element) whose
+ * value exactly equals the given string. Used to detect specific divider
+ * labels that should/shouldn't appear; intentionally exact-match (not
+ * substring) so unrelated text that happens to contain the same word
+ * doesn't pollute the count.
+ */
+function pdfTreeCountExactLeaf(node: AnyNode, exact: string): number {
+  if (node == null || typeof node === "boolean") return 0
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node) === exact ? 1 : 0
+  }
+  if (Array.isArray(node)) {
+    return node.reduce<number>((sum, c) => sum + pdfTreeCountExactLeaf(c, exact), 0)
+  }
+  if (typeof node === "object" && node !== null && "props" in node) {
+    const children = (node as { props?: { children?: AnyNode } }).props?.children
+    if (children !== undefined) return pdfTreeCountExactLeaf(children, exact)
+  }
+  return 0
+}
+
+/** Count divider <td> rows in the customer HTML output. Divider <td>s have
+ * the unique class signature "border-b border-neutral-200 pb-2 pt-5"; line
+ * <tr>s use different borders/padding. */
+function countCustomerDividerRows(html: string): number {
+  return (html.match(/border-b border-neutral-200 pb-2 pt-5/g) ?? []).length
+}
+/** Same for the workshop HTML output (different signature: includes px-2). */
+function countWorkshopDividerRows(html: string): number {
+  return (html.match(/border-b border-neutral-200 px-2 pb-2 pt-5/g) ?? []).length
+}
+function customerPdfText(model: QuoteOutputModel): unknown {
+  // Invoke the component function directly to get its JSX tree.
+  return (CustomerDocPdf as unknown as (p: { model: QuoteOutputModel }) => unknown)({ model })
+}
+function workshopPdfText(model: QuoteOutputModel): unknown {
+  return (WorkshopDocPdf as unknown as (p: { model: QuoteOutputModel }) => unknown)({ model })
+}
+
+// Render an HTML component to a static markup string for substring assertions.
+// CustomerDocHtml and WorkshopDocHtml are pure server components.
+type AnyComponent = (props: { model: QuoteOutputModel }) => unknown
+function renderHtml(Component: AnyComponent, model: QuoteOutputModel): string {
+  // createElement accepts our pure-component function; the React types are
+  // strict on ReactNode return, so a small cast keeps the call typed.
+  const el = createElement(
+    Component as unknown as JSXElementConstructor<{ model: QuoteOutputModel }>,
+    { model },
+  ) as unknown as ReactElement
+  return renderToStaticMarkup(el)
 }
 
 async function main() {
@@ -290,6 +366,273 @@ async function main() {
     check("null-location workshop PDF renders without crashing", pdfMagicOk(rW.bytes))
   } finally {
     await db.from("quotes").delete().eq("id", nullLocQ.id)
+  }
+
+  // -------------------------------------------------------------------------
+  // 5. Step 4b.1 polish — customer doc hides status + placeholder dividers;
+  //    workshop doc keeps both; "Add section heading" stores empty label.
+  // -------------------------------------------------------------------------
+  console.log("\nStep 4b.1 polish")
+
+  // 5a. Pure-function check of the placeholder denylist. Cheap guard against
+  // future regressions in isPlaceholderDividerLabel().
+  check("isPlaceholderDividerLabel(null) = true", isPlaceholderDividerLabel(null))
+  check("isPlaceholderDividerLabel('') = true", isPlaceholderDividerLabel(""))
+  check("isPlaceholderDividerLabel('   ') = true", isPlaceholderDividerLabel("   "))
+  check("isPlaceholderDividerLabel('New section') = true", isPlaceholderDividerLabel("New section"))
+  check("isPlaceholderDividerLabel('NEW SECTION') = true (case-insensitive)", isPlaceholderDividerLabel("NEW SECTION"))
+  check("isPlaceholderDividerLabel('DESCRIPTION') = true", isPlaceholderDividerLabel("DESCRIPTION"))
+  check("isPlaceholderDividerLabel('description') = true (case-insensitive)", isPlaceholderDividerLabel("description"))
+  check("isPlaceholderDividerLabel('Roof works') = false", !isPlaceholderDividerLabel("Roof works"))
+
+  // 5b. Q-100001 — confirm fixture matches the prompt's expectations: there
+  // ARE two placeholder dividers (so the test is exercising the real case),
+  // seven non-divider line items, total $2,691.50.
+  const q1Dividers = model1.lines.filter((l) => l.isDivider)
+  const q1NonDividers = model1.lines.filter((l) => !l.isDivider)
+  check(
+    "Q-100001 fixture: 2 placeholder dividers",
+    q1Dividers.length === 2 && q1Dividers.every((l) => isPlaceholderDividerLabel(l.description)),
+    `dividers=${q1Dividers.length} labels=${q1Dividers.map((l) => JSON.stringify(l.description)).join(",")}`,
+  )
+  check("Q-100001 fixture: 7 non-divider line items", q1NonDividers.length === 7, `got ${q1NonDividers.length}`)
+  check(
+    "Q-100001 fixture: total = $2,691.50",
+    formatMoney(model1.totals.total) === "$2,691.50",
+    `got ${formatMoney(model1.totals.total)}`,
+  )
+
+  // 5c. Customer HTML for Q-100001 must not show any status word and must
+  // not render the placeholder divider rows. Line items + total still there.
+  const custHtml1 = renderHtml(CustomerDocHtml, model1)
+  check("Q-100001 customer HTML hides 'Status:' header text", !custHtml1.includes("Status:"))
+  check(
+    "Q-100001 customer HTML hides every status string",
+    !/>\s*(draft|sent|accepted|rejected|invoiced|paid)\s*</i.test(custHtml1),
+  )
+  // Divider rows in the customer doc have a unique class signature. Both
+  // placeholder dividers should be suppressed.
+  const custDivRows = countCustomerDividerRows(custHtml1)
+  check(
+    "Q-100001 customer HTML emits zero divider <tr>s (both placeholders suppressed)",
+    custDivRows === 0,
+    `count=${custDivRows}`,
+  )
+  // Seven displayNumbers (1..7) all appear as text nodes for the line rows.
+  const allNumbersPresent = q1NonDividers.every((l) =>
+    custHtml1.includes(`>${l.displayNumber}<`),
+  )
+  check("Q-100001 customer HTML still renders all 7 line items in order", allNumbersPresent)
+  check("Q-100001 customer HTML still shows total $2,691.50", custHtml1.includes("$2,691.50"))
+
+  // 5d. Customer PDF — semantic tree check (binary stream is compressed).
+  // Search the JSX tree for Text-leaf nodes whose exact value equals a
+  // placeholder divider's stored label. With suppression, count = 0.
+  const custPdfTree = customerPdfText(model1)
+  check("Q-100001 customer PDF tree has no 'Status:'", !pdfTreeContains(custPdfTree, "Status:"))
+  const uniqueDividerLabels = Array.from(new Set(q1Dividers.map((d) => d.description)))
+  for (const label of uniqueDividerLabels) {
+    const n = pdfTreeCountExactLeaf(custPdfTree, label)
+    check(
+      `Q-100001 customer PDF tree omits placeholder label ${JSON.stringify(label)} as a Text leaf`,
+      n === 0,
+      `exact-leaf count=${n}`,
+    )
+  }
+
+  // 5e. Workshop HTML + PDF — status and placeholder dividers MUST remain
+  // (workshop is internal; James knows what they are).
+  const wkHtml1 = renderHtml(WorkshopDocHtml, model1)
+  check("Q-100001 workshop HTML still shows status", /Status/i.test(wkHtml1))
+  const wkDivRows = countWorkshopDividerRows(wkHtml1)
+  check(
+    "Q-100001 workshop HTML still renders both placeholder dividers",
+    wkDivRows === 2,
+    `count=${wkDivRows}`,
+  )
+  const wkPdfTree = workshopPdfText(model1)
+  check(
+    "Q-100001 workshop PDF tree still contains the status word",
+    pdfTreeContains(wkPdfTree, "Status"),
+  )
+  // For each unique stored divider label, expect at least one matching
+  // text leaf in the workshop PDF tree (the dividers are still emitted).
+  for (const label of uniqueDividerLabels) {
+    const n = pdfTreeCountExactLeaf(wkPdfTree, label)
+    check(
+      `Q-100001 workshop PDF tree still renders divider label ${JSON.stringify(label)}`,
+      n >= 1,
+      `exact-leaf count=${n}`,
+    )
+  }
+
+  // 5f. Real-label fixture — a divider with a genuine label must render as a
+  // bold section heading on the customer doc.
+  console.log("\nReal-label divider fixture")
+  const { data: roofQ } = await db
+    .from("quotes")
+    .insert({
+      organisation_id: CARAFIX_ORG,
+      canonical_job_type_id: jt.id,
+      location_id: arundel.id,
+      insurer_id: null,
+      status: "draft",
+      description: "STEP4B1-SELFTEST-REAL-LABEL",
+    })
+    .select("id")
+    .single()
+  if (!roofQ) throw new Error("could not insert real-label fixture")
+  try {
+    await db.from("quote_line_items").insert([
+      {
+        organisation_id: CARAFIX_ORG,
+        quote_id: roofQ.id,
+        line_order: 1,
+        line_type: "other",
+        description: "Roof works",
+        quantity: 0,
+        unit: null,
+        unit_cost: 0,
+        markup_pct: 0,
+        unit_price: 0,
+        line_total: 0,
+      },
+      {
+        organisation_id: CARAFIX_ORG,
+        quote_id: roofQ.id,
+        line_order: 2,
+        line_type: "part",
+        description: "Replacement panel",
+        quantity: 1,
+        unit_cost: 200,
+        markup_pct: 25,
+        unit_price: 250,
+        line_total: 250,
+      },
+    ])
+    const roofModel = await getQuoteForOutput(db, roofQ.id)
+    if (!roofModel) throw new Error("roof-fixture model null")
+    check("real-label divider detected as divider", roofModel.lines[0]?.isDivider === true)
+    check("real-label divider NOT placeholder", !isPlaceholderDividerLabel(roofModel.lines[0]?.description ?? null))
+    const roofCustHtml = renderHtml(CustomerDocHtml, roofModel)
+    check("customer HTML renders 'Roof works' as a heading", roofCustHtml.includes("Roof works"))
+    check("customer HTML still shows the line item below it", roofCustHtml.includes("Replacement panel"))
+    check(
+      "customer PDF tree renders 'Roof works'",
+      pdfTreeContains(customerPdfText(roofModel), "Roof works"),
+    )
+  } finally {
+    await db.from("quotes").delete().eq("id", roofQ.id)
+  }
+
+  // 5g. Empty-divider editor default — simulate the new "Add section heading"
+  // behaviour by inserting a divider with description="". Confirm it persists,
+  // the view-model treats it as a placeholder, and the customer doc omits it
+  // while the workshop doc still renders it.
+  // The UI focus/edit-on-create behaviour requires a browser harness and is
+  // out of scope for this script (noted in step4b-summary.md).
+  console.log("\nEmpty-divider editor default fixture")
+  const { data: emptyQ } = await db
+    .from("quotes")
+    .insert({
+      organisation_id: CARAFIX_ORG,
+      canonical_job_type_id: jt.id,
+      location_id: arundel.id,
+      insurer_id: null,
+      status: "draft",
+      description: "STEP4B1-SELFTEST-EMPTY-DIVIDER",
+    })
+    .select("id")
+    .single()
+  if (!emptyQ) throw new Error("could not insert empty-divider fixture")
+  try {
+    await db.from("quote_line_items").insert([
+      {
+        organisation_id: CARAFIX_ORG,
+        quote_id: emptyQ.id,
+        line_order: 1,
+        line_type: "other",
+        description: "", // exactly what the new addHeading() inserts
+        quantity: 0,
+        unit: null,
+        unit_cost: 0,
+        markup_pct: 0,
+        unit_price: 0,
+        line_total: 0,
+      },
+      {
+        organisation_id: CARAFIX_ORG,
+        quote_id: emptyQ.id,
+        line_order: 2,
+        line_type: "labour",
+        description: "Diagnose",
+        quantity: 1,
+        unit_cost: 140,
+        markup_pct: 0,
+        unit_price: 140,
+        line_total: 140,
+      },
+    ])
+    // Read back to confirm the empty string persisted (DB column is NOT NULL
+    // but allows empty strings).
+    const { data: storedDivider } = await db
+      .from("quote_line_items")
+      .select("description")
+      .eq("quote_id", emptyQ.id)
+      .eq("line_order", 1)
+      .single()
+    check("empty-divider stored description === ''", storedDivider?.description === "")
+
+    const emptyModel = await getQuoteForOutput(db, emptyQ.id)
+    if (!emptyModel) throw new Error("empty-divider model null")
+    check("empty divider detected as divider in model", emptyModel.lines[0]?.isDivider === true)
+    check(
+      "empty divider classified as placeholder",
+      isPlaceholderDividerLabel(emptyModel.lines[0]?.description ?? null),
+    )
+    const emptyCustHtml = renderHtml(CustomerDocHtml, emptyModel)
+    check(
+      "customer HTML omits the empty divider row",
+      countCustomerDividerRows(emptyCustHtml) === 0,
+    )
+    check("customer HTML still shows the labour line", emptyCustHtml.includes("Diagnose"))
+
+    // Now simulate James typing a name in the autofocused input and blurring
+    // — the editor calls updateLineItem under the hood. Assert the new label
+    // persists and is no longer treated as a placeholder.
+    const dividerId = emptyModel.lines[0] && (
+      (await db
+        .from("quote_line_items")
+        .select("id")
+        .eq("quote_id", emptyQ.id)
+        .eq("line_order", 1)
+        .single()).data?.id
+    )
+    if (!dividerId) throw new Error("could not look up divider id for update")
+    await db.from("quote_line_items").update({ description: "Engine works" }).eq("id", dividerId)
+    const { data: updatedDivider } = await db
+      .from("quote_line_items")
+      .select("description")
+      .eq("id", dividerId)
+      .single()
+    check(
+      "renamed divider persists with the new label",
+      updatedDivider?.description === "Engine works",
+      `got ${JSON.stringify(updatedDivider?.description)}`,
+    )
+    const renamedModel = await getQuoteForOutput(db, emptyQ.id)
+    check(
+      "renamed divider no longer classified as placeholder",
+      renamedModel != null &&
+        !isPlaceholderDividerLabel(renamedModel.lines[0]?.description ?? null),
+    )
+    const renamedCustHtml = renderHtml(CustomerDocHtml, renamedModel!)
+    check(
+      "customer HTML now renders 'Engine works' as a heading",
+      renamedCustHtml.includes("Engine works") && countCustomerDividerRows(renamedCustHtml) === 1,
+    )
+  } finally {
+    await db.from("quotes").delete().eq("id", emptyQ.id)
   }
 
   // -------------------------------------------------------------------------
