@@ -20,6 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -218,6 +223,65 @@ function AnchorStrip({ anchor }: { anchor: QuoteAnchor | undefined }) {
   )
 }
 
+// Soft amber dot inside the unit-price cell when a part line is more than
+// 5% below the SKU's typical sell AND the quote is retail (allow_nudge
+// from get_quote_anchors — false on insurance/warranty). Click/focus opens
+// a small popover with the typical figure and a dismiss button.
+//
+// Dismissal is session-scoped (component state in QuoteEditor) — closing
+// the popover hides the dot until the page reloads. No DB write; v1.
+// Never red, never a banner. Above-typical is intentionally NEVER flagged
+// (often intentional pricing).
+function NudgeDot({
+  anchor,
+  dismissed,
+  onDismiss,
+  readOnly,
+}: {
+  anchor: QuoteAnchor | undefined
+  dismissed: boolean
+  onDismiss: () => void
+  readOnly: boolean
+}) {
+  if (!anchor) return null
+  if (anchor.below_typical_pct == null) return null
+  if (!anchor.allow_nudge) return null
+  if (dismissed) return null
+  const median = anchor.median_price == null ? null : Number(anchor.median_price)
+  const pct = Number(anchor.below_typical_pct)
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Below typical price (-${pct.toFixed(1)}%)`}
+          className="inline-block size-2 rounded-full bg-amber-500/70 transition-transform hover:scale-125 focus-visible:scale-125 focus-visible:outline-none"
+        />
+      </PopoverTrigger>
+      <PopoverContent side="top" align="end" className="w-auto p-3 text-xs">
+        <div className="flex items-start gap-4">
+          <div className="space-y-0.5">
+            <div className="text-muted-foreground">
+              Below your typical {median == null ? "—" : formatMoney(median)}
+            </div>
+            <div className="font-semibold tabular-nums">−{pct.toFixed(1)}%</div>
+          </div>
+          {!readOnly && (
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={onDismiss}
+              className="text-base leading-none text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            >
+              ×
+            </button>
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 // Per-line margin readout under the Line total cell. Hidden on labour
 // (labour cost basis is the rate question, deferred) and dividers. The
 // percentage is the primary number; hover reveals the dollar value. 11px
@@ -255,6 +319,8 @@ function LineMarginSecondary({ line }: { line: LineItem }) {
 function LineRow({
   line,
   anchor,
+  nudgeDismissed,
+  onDismissNudge,
   quoteId,
   readOnly,
   onChanged,
@@ -266,6 +332,10 @@ function LineRow({
    * undefined when the line has no resolvable SKU or the quote isn't a part
    * line. The function only returns part lines. */
   anchor?: QuoteAnchor
+  /** Whether James has dismissed the below-norm nudge for this line in the
+   * current session. Session-scoped only (no DB write in v1). */
+  nudgeDismissed: boolean
+  onDismissNudge: () => void
   quoteId: string
   readOnly: boolean
   onChanged: () => void
@@ -363,7 +433,17 @@ function LineRow({
         <TableCell>{line.unit ?? (defaultUnit(line.line_type) || "—")}</TableCell>
         <TableCell className="text-right">{formatMoney(line.unit_cost)}</TableCell>
         <TableCell className="text-right">{line.markup_pct ?? 0}%</TableCell>
-        <TableCell className="text-right">{formatMoney(line.unit_price)}</TableCell>
+        <TableCell className="text-right">
+          <div className="inline-flex items-center justify-end gap-1.5">
+            <NudgeDot
+              anchor={anchor}
+              dismissed={nudgeDismissed}
+              onDismiss={onDismissNudge}
+              readOnly
+            />
+            {formatMoney(line.unit_price)}
+          </div>
+        </TableCell>
         <TableCell className="text-right font-medium">
           <div className="tabular-nums">{formatMoney(line.line_total)}</div>
           <LineMarginSecondary line={line} />
@@ -436,7 +516,17 @@ function LineRow({
           onBlur={() => (draft.markup_pct ?? 0) !== (line.markup_pct ?? 0) && save({ markup_pct: draft.markup_pct ?? 0 })}
         />
       </TableCell>
-      <TableCell className="text-right text-muted-foreground">{formatMoney(line.unit_price)}</TableCell>
+      <TableCell className="text-right text-muted-foreground">
+        <div className="inline-flex items-center justify-end gap-1.5">
+          <NudgeDot
+            anchor={anchor}
+            dismissed={nudgeDismissed}
+            onDismiss={onDismissNudge}
+            readOnly={false}
+          />
+          {formatMoney(line.unit_price)}
+        </div>
+      </TableCell>
       <TableCell className="text-right font-medium">
         <div className="tabular-nums">{formatMoney(line.line_total)}</div>
         <LineMarginSecondary line={line} />
@@ -504,6 +594,19 @@ export function QuoteEditor({
   })
 
   const { data: anchors } = useQuoteAnchors(quote.id)
+
+  // Session-scoped dismissal: line_ids whose below-norm nudge James has
+  // closed in this tab. Resets on reload — no DB persistence in v1.
+  const [dismissedNudges, setDismissedNudges] = React.useState<Set<string>>(
+    () => new Set(),
+  )
+  const dismissNudge = React.useCallback((lineId: string) => {
+    setDismissedNudges((prev) => {
+      const next = new Set(prev)
+      next.add(lineId)
+      return next
+    })
+  }, [])
 
   const refresh = React.useCallback(() => {
     qc.invalidateQueries({ queryKey: ["quote", quote.id] })
@@ -624,6 +727,8 @@ export function QuoteEditor({
                     key={l.id}
                     line={l}
                     anchor={anchors?.get(l.id)}
+                    nudgeDismissed={dismissedNudges.has(l.id)}
+                    onDismissNudge={() => dismissNudge(l.id)}
                     quoteId={quote.id}
                     readOnly={readOnly}
                     onChanged={refresh}
