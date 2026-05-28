@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { formatDate } from "@/lib/format"
+import { formatDate, formatMoney } from "@/lib/format"
 import { getBrowserClient } from "@/lib/supabase/browser"
 import { SimilarQuotesPanel, useSimilarQuotes } from "@/components/quotes/similar-quotes-panel"
 import {
@@ -84,9 +84,6 @@ export type LineItem = {
 
 const STATUSES = ["draft", "sent", "approved", "rejected", "converted_to_job", "cancelled"]
 const LINE_TYPES: LineType[] = ["part", "labour", "consumable", "freight", "other"]
-
-const money = (n: number | null | undefined) =>
-  n == null ? "—" : new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(n)
 
 function vanLabel(v: QuoteHeader["vans"]) {
   if (!v) return "—"
@@ -193,10 +190,10 @@ function LineRow({
         <TableCell className="capitalize text-muted-foreground">{line.line_type}</TableCell>
         <TableCell className="text-right">{line.quantity}</TableCell>
         <TableCell>{line.unit ?? (defaultUnit(line.line_type) || "—")}</TableCell>
-        <TableCell className="text-right">{money(line.unit_cost)}</TableCell>
+        <TableCell className="text-right">{formatMoney(line.unit_cost)}</TableCell>
         <TableCell className="text-right">{line.markup_pct ?? 0}%</TableCell>
-        <TableCell className="text-right">{money(line.unit_price)}</TableCell>
-        <TableCell className="text-right font-medium">{money(line.line_total)}</TableCell>
+        <TableCell className="text-right">{formatMoney(line.unit_price)}</TableCell>
+        <TableCell className="text-right font-medium">{formatMoney(line.line_total)}</TableCell>
       </TableRow>
     )
   }
@@ -264,8 +261,8 @@ function LineRow({
           onBlur={() => (draft.markup_pct ?? 0) !== (line.markup_pct ?? 0) && save({ markup_pct: draft.markup_pct ?? 0 })}
         />
       </TableCell>
-      <TableCell className="text-right text-muted-foreground">{money(line.unit_price)}</TableCell>
-      <TableCell className="text-right font-medium">{money(line.line_total)}</TableCell>
+      <TableCell className="text-right text-muted-foreground">{formatMoney(line.unit_price)}</TableCell>
+      <TableCell className="text-right font-medium">{formatMoney(line.line_total)}</TableCell>
       <TableCell>
         <div className="flex items-center gap-0.5">
           <Button variant="ghost" size="icon" className="size-7" onClick={() => startTransition(async () => { await moveLineItem(line.id, lineQuoteId, "up"); onChanged() })}>
@@ -478,14 +475,14 @@ function TotalsFooter({
     // Sticky to the bottom of the scroll area; -mx-6 spans the main's padding.
     <div className="sticky bottom-0 z-20 -mx-6 border-t bg-background px-6 py-3">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <FooterStat label="Parts" value={money(header.subtotal_parts)} />
-        <FooterStat label="Labour" value={money(header.subtotal_labour)} />
-        <FooterStat label="Consumables" value={money(header.subtotal_consumables)} />
-        <FooterStat label="Other" value={money(header.subtotal_other)} />
+        <FooterStat label="Parts" value={formatMoney(header.subtotal_parts)} />
+        <FooterStat label="Labour" value={formatMoney(header.subtotal_labour)} />
+        <FooterStat label="Consumables" value={formatMoney(header.subtotal_consumables)} />
+        <FooterStat label="Other" value={formatMoney(header.subtotal_other)} />
 
         <div className="ml-auto flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Total</span>
-          <span className="text-lg font-semibold tabular-nums">{money(header.total)}</span>
+          <span className="text-lg font-semibold tabular-nums">{formatMoney(header.total)}</span>
         </div>
 
         {!readOnly && (
