@@ -14,6 +14,11 @@ export type QuoteHeaderInput = {
   insurer_id?: string | null
   description?: string | null
   damage_tags?: string[] | null
+  // Workshop location the quote is being raised at. Captured on create so the
+  // customer/workshop PDFs render the correct site address/phone/email; sticky
+  // after that (the quote stays attached to the location it was raised at, even
+  // if the user later switches the top-right location switcher).
+  location_id?: string | null
 }
 
 export type LineType = "part" | "labour" | "consumable" | "freight" | "other"
@@ -50,6 +55,19 @@ export async function createQuote(
   if (!organisationId || !user) return { error: "No organisation for current user." }
   if (!input.canonical_job_type_id) return { error: "Job type is required." }
 
+  // Location cascade: explicit input → user's default_location_id → null. We
+  // never block the create on a missing location (the PDF renderer degrades
+  // gracefully); the column is nullable for future-import compatibility.
+  let locationId = input.location_id ?? null
+  if (!locationId) {
+    const { data: profile } = await supabase
+      .from("app_users")
+      .select("default_location_id")
+      .eq("id", user.id)
+      .single()
+    locationId = profile?.default_location_id ?? null
+  }
+
   const { data, error } = await supabase
     .from("quotes")
     .insert({
@@ -58,6 +76,7 @@ export async function createQuote(
       vehicle_id: input.vehicle_id || null,
       canonical_job_type_id: input.canonical_job_type_id,
       insurer_id: input.insurer_id || null,
+      location_id: locationId,
       description: input.description?.trim() || null,
       damage_tags: input.damage_tags && input.damage_tags.length > 0 ? input.damage_tags : null,
       status: "draft",

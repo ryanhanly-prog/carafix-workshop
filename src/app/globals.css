@@ -128,3 +128,18 @@
     @apply font-sans;
   }
 }
+
+/* Print rules for the (print) route group. Hide the on-page action bar
+ * (Download PDF / Print buttons / Back link) so Ctrl-P from the HTML view
+ * also yields a clean document. The .quote-output-root wrapper is applied by
+ * src/app/(print)/layout.tsx so these only affect the customer/workshop
+ * preview pages, never the rest of the app. */
+@media print {
+  .quote-output-root .print-hidden {
+    display: none !important;
+  }
+  .quote-output-root {
+    background: #fff !important;
+    color: #000 !important;
+  }
+}

@@ -1529,25 +1529,31 @@ export type Database = {
           active: boolean | null
           address: string | null
           created_at: string | null
+          email: string | null
           id: string
           name: string
           organisation_id: string
+          phone: string | null
         }
         Insert: {
           active?: boolean | null
           address?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           name: string
           organisation_id: string
+          phone?: string | null
         }
         Update: {
           active?: boolean | null
           address?: string | null
           created_at?: string | null
+          email?: string | null
           id?: string
           name?: string
           organisation_id?: string
+          phone?: string | null
         }
         Relationships: [
           {
@@ -1885,6 +1891,7 @@ export type Database = {
           description: string | null
           id: string
           insurer_id: string | null
+          location_id: string | null
           notes: string | null
           organisation_id: string
           quote_number: string | null
@@ -1909,6 +1916,7 @@ export type Database = {
           description?: string | null
           id?: string
           insurer_id?: string | null
+          location_id?: string | null
           notes?: string | null
           organisation_id: string
           quote_number?: string | null
@@ -1933,6 +1941,7 @@ export type Database = {
           description?: string | null
           id?: string
           insurer_id?: string | null
+          location_id?: string | null
           notes?: string | null
           organisation_id?: string
           quote_number?: string | null
@@ -1973,6 +1982,13 @@ export type Database = {
             columns: ["insurer_id"]
             isOneToOne: false
             referencedRelation: "insurers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
             referencedColumns: ["id"]
           },
           {

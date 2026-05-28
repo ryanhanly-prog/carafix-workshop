@@ -40,6 +40,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { createInsurer } from "@/lib/actions/insurers"
 import { createQuote } from "@/lib/actions/quotes"
+import { useLocation } from "@/lib/location-context"
 import { getBrowserClient } from "@/lib/supabase/browser"
 
 export type JobTypeOption = {
@@ -65,6 +66,10 @@ export function NewQuoteForm({
 }) {
   const router = useRouter()
   const supabase = getBrowserClient()
+  // Capture the user's currently-selected location at create time so the
+  // quote's PDF can render the correct site contact details. The server
+  // action falls back to app_users.default_location_id if this is null.
+  const { currentLocationId } = useLocation()
   const [customer, setCustomer] = React.useState<SelectedCustomer | null>(null)
   const [van, setVan] = React.useState<SelectedVan | null>(null)
   const [jobTypeId, setJobTypeId] = React.useState<string>("")
@@ -194,6 +199,7 @@ export function NewQuoteForm({
         insurer_id: needsInsurer ? insurerId : null,
         description,
         damage_tags: tags,
+        location_id: currentLocationId,
       })
       if (res.error || !res.id) {
         toast.error("Could not create quote", { description: res.error })

@@ -1,5 +1,18 @@
 import { format, parseISO } from "date-fns"
 
+const AUD = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
+
+/**
+ * Display an AUD amount, e.g. `$1,234.50`. Null/undefined renders as an em
+ * dash. Centralised so the quote editor, customer PDF, and workshop PDF all
+ * format the same way — extracted from a previous inline definition in the
+ * quote editor.
+ */
+export function formatMoney(n: number | null | undefined): string {
+  if (n == null) return "—"
+  return AUD.format(n)
+}
+
 /** Display a DB date (ISO string) as `DD MMM YYYY`, e.g. "28 May 2026". */
 export function formatDate(date: string | null | undefined): string {
   if (!date) return "—"
